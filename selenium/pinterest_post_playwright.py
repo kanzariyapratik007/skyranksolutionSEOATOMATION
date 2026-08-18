@@ -63,6 +63,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             )
             
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                window.chrome = { runtime: {} };
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            """)
+            
             page = context.pages[0] if context.pages else context.new_page()
             
             # ── Step 1 & 2: Direct Pin Creation Entry (Reusing Saved Session Cookies) ──
@@ -83,23 +90,21 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(4000)
                 
-                # Email input — human typing simulation to bypass bot detector
+                # Email input — fill and dispatch events for React
                 email_input = page.locator("input[type='email'], input#email, input[name='username']").first
                 email_input.wait_for(state="visible", timeout=20000)
                 email_input.click()
-                try:
-                    email_input.press_sequentially(email, delay=50)
-                except Exception:
-                    email_input.fill(email)
+                email_input.fill(email)
+                email_input.dispatch_event("input")
+                email_input.dispatch_event("change")
                 page.wait_for_timeout(1000)
                 
-                # Password input — human typing simulation
+                # Password input — fill and dispatch events for React
                 pass_input = page.locator("input[type='password'], input#password, input[name='password']").first
                 pass_input.click()
-                try:
-                    pass_input.press_sequentially(password, delay=50)
-                except Exception:
-                    pass_input.fill(password)
+                pass_input.fill(password)
+                pass_input.dispatch_event("input")
+                pass_input.dispatch_event("change")
                 page.wait_for_timeout(1500)
                 
                 # Submit via trusted click / Enter key to bypass Pinterest bot detection
