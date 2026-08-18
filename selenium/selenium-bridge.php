@@ -22,7 +22,20 @@ function runSeleniumScript(string $script, array $args, int $timeout = 240): arr
     }
 
     // Build command — escape all args
-    $cmd = escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+    $isLinux = (strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN');
+    $xvfbPath = '';
+    if ($isLinux) {
+        $xvfbCheck = trim((string)shell_exec('which xvfb-run 2>/dev/null'));
+        if (!empty($xvfbCheck) && file_exists($xvfbCheck)) {
+            $xvfbPath = $xvfbCheck;
+        }
+    }
+
+    if (!empty($xvfbPath)) {
+        $cmd = escapeshellarg($xvfbPath) . ' -a ' . escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+    } else {
+        $cmd = escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+    }
     foreach ($args as $arg) {
         $cmd .= ' ' . escapeshellarg((string)$arg);
     }

@@ -54,10 +54,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 "--disable-software-rasterizer"
             ]
             
-            log("Launching browser context...")
+            headless_mode = True
+            if os.environ.get("DISPLAY") or os.environ.get("USE_HEADFUL") == "1":
+                headless_mode = False
+
+            log(f"Launching browser context (headless={headless_mode})...")
             context = p.chromium.launch_persistent_context(
                 user_data_dir=profile_dir,
-                headless=True,
+                headless=headless_mode,
                 args=launch_args,
                 viewport={"width": 1400, "height": 900},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
