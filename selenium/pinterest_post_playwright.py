@@ -290,33 +290,36 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 page.wait_for_timeout(3000)
                 log("Board dropdown opened")
                 
-                flyout = page.locator("[data-test-id='board-picker-flyout']")
+                flyout = page.locator("[data-test-id='board-picker-flyout'], [role='listbox']")
                 if flyout.count() > 0:
-                    rows = flyout.locator("[data-test-id='boardWithoutSection']")
+                    rows = flyout.locator("[data-test-id='boardWithoutSection'], [role='option']")
                     row_count = rows.count()
                     log(f"Board rows found: {row_count}")
                     
-                    kw_words = [w.lower() for w in keyword.split() if len(w) > 2]
-                    best_idx = None
-                    best_score = 0
-                    
-                    for idx in range(row_count):
-                        txt = rows.nth(idx).inner_text().strip().lower()
-                        if not txt or 'create' in txt:
-                            continue
-                        score = sum(1 for w in kw_words if w in txt)
-                        if score > best_score:
-                            best_score = score
-                            best_idx = idx
-                            
-                    if best_idx is not None:
-                        row_to_click = rows.nth(best_idx)
-                        log(f"Board selected: '{row_to_click.inner_text().strip()}' (score={best_score})")
-                        row_to_click.click()
+                    if row_count > 0:
+                        kw_words = [w.lower() for w in keyword.split() if len(w) > 2]
+                        best_idx = None
+                        best_score = 0
+                        
+                        for idx in range(row_count):
+                            txt = rows.nth(idx).inner_text().strip().lower()
+                            if not txt or 'create' in txt:
+                                continue
+                            score = sum(1 for w in kw_words if w in txt)
+                            if score > best_score:
+                                best_score = score
+                                best_idx = idx
+                                
+                        if best_idx is not None:
+                            row_to_click = rows.nth(best_idx)
+                            log(f"Board selected: '{row_to_click.inner_text().strip()}' (score={best_score})")
+                            row_to_click.click()
+                        else:
+                            first_row = rows.first
+                            log(f"Board selected: '{first_row.inner_text().strip()}' (fallback)")
+                            first_row.click()
                     else:
-                        first_row = rows.first
-                        log(f"Board selected: '{first_row.inner_text().strip()}' (fallback)")
-                        first_row.click()
+                        log("No board rows matched — keeping default board.")
                     page.wait_for_timeout(3000)
             except Exception as e:
                 log(f"Board select: {e}")
