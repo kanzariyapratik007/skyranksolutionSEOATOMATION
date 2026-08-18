@@ -125,3 +125,7 @@ coverage/
 # Windows
 *.lnk
 *.url
+uploads.tar.gz
+uploads.tar.gz
+*.sql
+*.txt

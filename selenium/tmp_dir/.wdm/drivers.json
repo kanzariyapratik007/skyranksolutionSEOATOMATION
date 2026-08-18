@@ -1,0 +1,18 @@
+{
+    "linux64_chromedriver_150.0.7871.46_for_150.0.7871": {
+        "timestamp": "07/07/2026",
+        "binary_path": "/var/www/html/selenium/tmp_dir/.wdm/drivers/chromedriver/linux64/150.0.7871.46/chromedriver-linux64/chromedriver"
+    },
+    "linux64_chromedriver_150.0.7871.49_for_150.0.7871": {
+        "timestamp": "08/07/2026",
+        "binary_path": "/var/www/html/selenium/tmp_dir/.wdm/drivers/chromedriver/linux64/150.0.7871.49/chromedriver-linux64/chromedriver"
+    },
+    "linux64_chromedriver_150.0.7871.115_for_150.0.7871": {
+        "timestamp": "14/07/2026",
+        "binary_path": "/var/www/html/selenium/tmp_dir/.wdm/drivers/chromedriver/linux64/150.0.7871.115/chromedriver-linux64/chromedriver"
+    },
+    "linux64_chromedriver_150.0.7871.124_for_150.0.7871": {
+        "timestamp": "15/07/2026",
+        "binary_path": "/var/www/html/selenium/tmp_dir/.wdm/drivers/chromedriver/linux64/150.0.7871.124/chromedriver-linux64/chromedriver"
+    }
+}
