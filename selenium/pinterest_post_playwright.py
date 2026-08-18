@@ -86,30 +86,47 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             
             if not already_logged:
                 log("Session expired or not logged in — logging in...")
-                log("Navigating to Pinterest /login/ page...")
-                page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(4000)
+                log("Navigating to Pinterest home page to open login modal...")
+                page.goto("https://www.pinterest.com/", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(3000)
                 
-                # Email input — fill and dispatch events for React
+                # Open login modal if button exists on homepage
+                home_login = page.locator("[data-test-id='simple-login-button'], button:has-text('Log in'), a:has-text('Log in')").first
+                if home_login.count() > 0 and home_login.is_visible():
+                    log("Opening Pinterest login modal from home page...")
+                    home_login.click()
+                    page.wait_for_timeout(3000)
+                else:
+                    log("Navigating directly to /login/ page...")
+                    page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(3000)
+                
+                # Email input — human typing + React events
                 email_input = page.locator("input[type='email'], input#email, input[name='username']").first
                 email_input.wait_for(state="visible", timeout=20000)
                 email_input.click()
-                email_input.fill(email)
+                try:
+                    email_input.press_sequentially(email, delay=40)
+                except Exception:
+                    email_input.fill(email)
                 email_input.dispatch_event("input")
                 email_input.dispatch_event("change")
                 page.wait_for_timeout(1000)
                 
-                # Password input — fill and dispatch events for React
+                # Password input — human typing + React events
                 pass_input = page.locator("input[type='password'], input#password, input[name='password']").first
                 pass_input.click()
-                pass_input.fill(password)
+                try:
+                    pass_input.press_sequentially(password, delay=40)
+                except Exception:
+                    pass_input.fill(password)
                 pass_input.dispatch_event("input")
                 pass_input.dispatch_event("change")
                 page.wait_for_timeout(1500)
                 
-                # Submit via trusted click / Enter key to bypass Pinterest bot detection
+                # Submit via trusted click / Enter key
                 try:
-                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], button:has-text('Log in')").first
+                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button']").first
                     if submit_btn.count() > 0 and submit_btn.is_visible():
                         log("Submitting Pinterest login form via trusted click...")
                         submit_btn.click(timeout=5000)
