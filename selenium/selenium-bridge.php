@@ -226,8 +226,11 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
 
     $result = runSeleniumScript('pinterest_post_playwright.py', $args, 240);
     if (empty($result['success'])) {
-        // Fallback to Selenium Chrome engine (pinterest_post.py) if Playwright is blocked
-        $result = runSeleniumScript('pinterest_post.py', $args, 240);
+        // Fallback to legacy Selenium only if Playwright script was missing or produced no result
+        $err = $result['error'] ?? '';
+        if (empty($err) || strpos($err, 'No result from') !== false) {
+            $result = runSeleniumScript('pinterest_post.py', $args, 240);
+        }
     }
 
     if (!empty($result['success'])) {
