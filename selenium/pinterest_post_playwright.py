@@ -347,17 +347,19 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
             # ── Step 9: Get Pin URL ────────────────────────────────────
             log("Waiting for published Pin URL...")
-            page.wait_for_timeout(3000)
             
-            # 1. Check for "See your pin" / "View" toast popup link
-            try:
-                see_pin = page.locator("a:has-text('See your pin'), a:has-text('View'), [data-test-id='toast-link']").first
-                if see_pin.count() > 0 and see_pin.is_visible():
-                    log("Clicking 'See your pin' toast link...")
-                    see_pin.click()
-                    page.wait_for_timeout(3000)
-            except Exception as e_toast:
-                log(f"Toast click exception: {e_toast}")
+            # 1. Immediately check for "See your pin" / "View" toast popup link before it fades out
+            for _ in range(10):
+                try:
+                    see_pin = page.locator("a:has-text('See your pin'), a:has-text('View'), [data-test-id='toast-link'], div[role='alert'] a[href*='/pin/']").first
+                    if see_pin.count() > 0 and see_pin.is_visible():
+                        log("Clicking 'See your pin' toast link...")
+                        see_pin.click()
+                        page.wait_for_timeout(2000)
+                        break
+                except Exception:
+                    pass
+                page.wait_for_timeout(500)
                 
             for _ in range(6):
                 cu = page.url
@@ -366,14 +368,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     result(True, url=cu)
                     context.close()
                     return
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(500)
                 
-            # 2. Search DOM for any created /pin/ link
+            # 2. Search DOM for created /pin/ link
             try:
                 pin_links = page.locator("a[href*='/pin/']")
                 if pin_links.count() > 0:
                     href = pin_links.first.get_attribute("href")
-                    if href:
+                    if href and "/pin/" in href:
                         if not href.startswith("http"):
                             href = "https://www.pinterest.com" + href
                         log(f"Captured Pin URL from DOM link: {href}")
@@ -388,14 +390,30 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             if pin_urls:
                 log(f"Captured Pin URL from page source regex: {pin_urls[0]}")
                 result(True, url=pin_urls[0])
-            elif published:
-                # 3. Fallback: Navigate to /me/ to get user's exact profile URL (e.g. disha0777/_pins/)
+                context.close()
+                return
+
+            if published:
+                # 3. Fallback: Navigate to /me/ and extract the newest created Pin URL from profile
                 try:
-                    log("Navigating to /me/ to detect exact user profile URL...")
+                    log("Navigating to /me/ to detect exact user profile & latest Pin URL...")
                     page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=20000)
                     page.wait_for_timeout(3000)
+                    
+                    # Search for newest created pin on profile page
+                    profile_pin_links = page.locator("a[href*='/pin/']")
+                    if profile_pin_links.count() > 0:
+                        href = profile_pin_links.first.get_attribute("href")
+                        if href and "/pin/" in href:
+                            if not href.startswith("http"):
+                                href = "https://www.pinterest.com" + href
+                            log(f"Captured newest Pin URL from profile page: {href}")
+                            result(True, url=href)
+                            context.close()
+                            return
+                            
                     profile_url = page.url
-                    if "pinterest.com" in profile_url and "login" not in profile_url:
+                    if "pinterest.com" in profile_url and "login" not in profile_url and "signup" not in profile_url:
                         if not profile_url.endswith("/"):
                             profile_url += "/"
                         log(f"Captured user profile URL: {profile_url}")
@@ -403,6 +421,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         context.close()
                         return
                 except Exception as e_me:
+                    log(f"Profile URL check exception: {e_me}")
                     log(f"/me/ redirect exception: {e_me}")
                 uname = email.split("@")[0].lower().replace(".", "")
                 result(True, url=f"https://www.pinterest.com/{uname}/")
