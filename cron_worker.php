@@ -15,21 +15,20 @@ if ($lockFp && !flock($lockFp, LOCK_EX | LOCK_NB)) {
     exit;
 }
 
-// Prevent concurrent runs: check if any task is already processing
+// Prevent concurrent runs: auto-recover tasks stuck in 'processing' status for > 5 minutes
 $db = getDB();
+$timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'failed', error_message = 'Timeout: Process hung or was terminated by the OS.' WHERE status = 'processing' AND (updated_at < NOW() - INTERVAL 5 MINUTE OR updated_at IS NULL)");
+$timeoutStmt->execute();
+if ($timeoutStmt->rowCount() > 0) {
+    @exec("php " . __DIR__ . "/cleanup_zombies.php > /dev/null 2>&1");
+}
+
 $stmt = $db->prepare("SELECT COUNT(*) FROM backlink_queue WHERE status = 'processing'");
 $stmt->execute();
 $running = (int)$stmt->fetchColumn();
 
 if ($running > 0) {
-    // Timeout check: if a task is stuck in 'processing' status for more than 15 minutes, mark as failed
-    $timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'failed', error_message = 'Timeout: Process hung or was terminated by the OS.' WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 15 MINUTE");
-    $timeoutStmt->execute();
-    if ($timeoutStmt->rowCount() > 0) {
-        @exec("php " . __DIR__ . "/cleanup_zombies.php > /dev/null 2>&1 &");
-    }
-    
-    echo "A task is already processing. Exiting to avoid concurrency.\n";
+    echo "A task is currently processing. Exiting to avoid concurrency.\n";
     exit;
 }
 
