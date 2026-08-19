@@ -5,7 +5,7 @@ requireMenuPermission('api-keys');
 $saved = false;
 $error = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_keys'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrf($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid request.';
     } else {
@@ -30,11 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_keys'])) {
         $export = "<?php\n// Auto-saved from API Setup — " . date('Y-m-d H:i') . "\nreturn " . var_export($merged, true) . ";\n";
         if (file_put_contents(__DIR__ . '/config.local.php', $export) !== false) {
             $saved = true;
-            setFlash('success', 'API keys saved to config.local.php. Refresh page to apply.');
+            setFlash('success', 'API keys saved to config.local.php.');
             header('Location: api-setup.php');
             exit;
         }
-        $error = 'Could not write config.local.php. Copy config.local.php.example manually and set permissions.';
+        $error = 'Could not write config.local.php. Check file permissions.';
     }
 }
 
@@ -212,7 +212,7 @@ function maskKey($v) {
         <div class="card-body">
           <div class="form-check form-switch">
             <input class="form-check-input" type="checkbox" name="enable_tier2" id="enableTier2" 
-                   <?= (defined('ENABLE_TIER2_POSTING') ? ENABLE_TIER2_POSTING : true) ? 'checked' : '' ?>>
+                   <?= (isset($local['ENABLE_TIER2_POSTING']) ? (bool)$local['ENABLE_TIER2_POSTING'] : ENABLE_TIER2_POSTING) ? 'checked' : '' ?>>
             <label class="form-check-label fw-bold" for="enableTier2">Enable Tier 2 Backlink Auto-Posting</label>
           </div>
           <div class="form-text text-muted">
