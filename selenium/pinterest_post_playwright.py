@@ -233,16 +233,36 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            log("Opening Pin creation canvas (https://www.pinterest.com/pin-builder/)...")
+            log(f"Opening Pin creation canvas (URL: {page.url})...")
             try:
                 page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(5000)
             except Exception as e_pb:
                 log(f"Pin builder navigation exception: {e_pb}")
 
+            # Dismiss any dialogs / overlays covering the Pin builder
+            for _ in range(3):
+                try:
+                    close_btn = page.locator("button:has-text('Not now'), button:has-text('Skip'), button:has-text('Cancel'), [aria-label='Close'], button:has-text('Got it')").first
+                    if close_btn.count() > 0 and close_btn.is_visible():
+                        log("Dismissing overlay dialog on Pin builder...")
+                        close_btn.click(timeout=3000)
+                        page.wait_for_timeout(2000)
+                    else:
+                        break
+                except Exception:
+                    break
+
             file_check = page.locator("input[type='file']").first
             if file_check.count() == 0:
-                log("Pin file input not ready — trying /pin-creation-tool/ fallback...")
+                log(f"File input not found yet. Current URL: {page.url} | Title: {page.title()}")
+                try:
+                    debug_img = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_builder_debug.png')
+                    page.screenshot(path=debug_img, timeout=5000)
+                    log(f"Saved debug screenshot to pinterest_builder_debug.png")
+                except Exception:
+                    pass
+                log("Trying /pin-creation-tool/ fallback...")
                 try:
                     page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
                     page.wait_for_timeout(5000)
