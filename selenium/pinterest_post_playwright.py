@@ -233,30 +233,45 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            log(f"Opening Pin creation canvas (Current URL: {page.url})...")
-            # Try clicking top/left SPA Create button first
-            create_btn = page.locator("a[href*='pin-builder'], [data-test-id='header-create-button'], [data-test-id='create-pin-button'], button:has-text('Create'), div[aria-label*='Create' i]").first
-            if create_btn.count() > 0 and create_btn.is_visible():
-                log("Clicking Create button from navigation UI...")
-                try:
-                    create_btn.click(timeout=5000)
-                    page.wait_for_timeout(3000)
-                    # Click "Pin" if popover menu opened
-                    pin_sub = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), a[href*='pin-builder']").first
-                    if pin_sub.count() > 0 and pin_sub.is_visible():
-                        pin_sub.click(timeout=3000)
-                        page.wait_for_timeout(3000)
-                except Exception as e_c:
-                    log(f"Create button click exception: {e_c}")
+            # Determine regional subdomain (e.g. in.pinterest.com)
+            current_domain = "in.pinterest.com" if "in.pinterest.com" in page.url else "www.pinterest.com"
+            log(f"Opening Pin creation canvas (Domain: {current_domain})...")
+            
+            # Attempt 1: Direct navigation to regional pin-creation-tool
+            try:
+                page.goto(f"https://{current_domain}/pin-creation-tool/", wait_until="domcontentloaded", timeout=45000)
+            except Exception as e_pb:
+                log(f"Pin builder direct navigation: {e_pb}")
 
-            # If input not present yet, do direct page navigation
+            # Wait for React to attach file input
+            try:
+                page.wait_for_selector("input[type='file'], [data-test-id*='upload']", state="attached", timeout=8000)
+            except Exception:
+                pass
+
+            # Attempt 2: If input not found, click Create [+] on sidebar
             if page.locator("input[type='file']").count() == 0:
+                log("File input not ready — trying left sidebar Create (+) button...")
+                create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [data-test-id='create-button']").first
+                if create_btn.count() > 0 and create_btn.is_visible():
+                    try:
+                        create_btn.click(timeout=5000)
+                        page.wait_for_timeout(2000)
+                        pin_opt = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin')").first
+                        if pin_opt.count() > 0 and pin_opt.is_visible():
+                            pin_opt.click(timeout=3000)
+                            page.wait_for_timeout(3000)
+                    except Exception as e_c:
+                        log(f"Sidebar click: {e_c}")
+
+            # Attempt 3: If input still not found, try pin-builder URL
+            if page.locator("input[type='file']").count() == 0:
+                log(f"Navigating to https://{current_domain}/pin-builder/...")
                 try:
-                    log("Navigating directly to https://www.pinterest.com/pin-builder/...")
-                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
+                    page.goto(f"https://{current_domain}/pin-builder/", wait_until="domcontentloaded", timeout=45000)
                     page.wait_for_timeout(5000)
-                except Exception as e_pb:
-                    log(f"Pin builder navigation exception: {e_pb}")
+                except Exception as e_pb2:
+                    log(f"Pin builder fallback 2: {e_pb2}")
 
             # Dismiss any dialogs / overlays covering the Pin builder
             for _ in range(3):
@@ -273,7 +288,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             file_check = page.locator("input[type='file']").first
             if file_check.count() == 0:
-                log(f"File input not found yet. Current URL: {page.url} | Title: {page.title()}")
+                log(f"File input missing. Current URL: {page.url} | Title: {page.title()}")
                 try:
                     debug_img = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_builder_debug.png')
                     page.screenshot(path=debug_img, timeout=5000)
@@ -369,7 +384,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             # ── Step 6: Link ───────────────────────────────────────────
             log("Filling link...")
             try:
-                link_input = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link'], input[placeholder*='Link']").first
+                link_input = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link']").first
                 link_input.wait_for(state="visible", timeout=10000)
                 link_input.click()
                 link_input.fill(target_site)
@@ -380,7 +395,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             # ── Step 7: Board ──────────────────────────────────────────
             log("Opening board dropdown...")
             try:
-                board_btn = page.locator("[data-test-id='board-dropdown-select-button']").first
+                board_btn = page.locator("[data-test-id='board-dropdown-select-button'], [data-test-id='board-picker-select-button'], button:has-text('Select board'), div:has-text('Choose a board')").first
                 board_btn.wait_for(state="visible", timeout=10000)
                 board_btn.click()
                 page.wait_for_timeout(3000)
@@ -425,16 +440,23 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             published = False
             for attempt in range(4):
                 try:
-                    btns = page.locator("button")
-                    btn_count = btns.count()
-                    for idx in range(btn_count):
-                        btn = btns.nth(idx)
-                        txt = btn.inner_text().strip()
-                        if txt == 'Publish' and btn.is_visible() and btn.is_enabled():
-                            btn.click()
-                            log("Published via Publish button click!")
-                            published = True
-                            break
+                    pub_btn = page.locator("button[data-test-id*='publish'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish')").first
+                    if pub_btn.count() > 0 and pub_btn.is_visible() and pub_btn.is_enabled():
+                        pub_btn.click(timeout=5000)
+                        log("Published via Publish button click!")
+                        published = True
+                        break
+                    else:
+                        btns = page.locator("button")
+                        btn_count = btns.count()
+                        for idx in range(btn_count):
+                            btn = btns.nth(idx)
+                            txt = btn.inner_text().strip()
+                            if txt == 'Publish' and btn.is_visible() and btn.is_enabled():
+                                btn.click()
+                                log("Published via Publish button click!")
+                                published = True
+                                break
                     if published:
                         break
                 except Exception as e:
