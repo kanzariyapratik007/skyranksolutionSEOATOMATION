@@ -55,7 +55,7 @@ $userFilterProj = $isAdmin ? "" : " AND p.user_id = $userId";
 
 // A. Published Backlinks on Selected Date
 $backlinksSql = "
-    SELECT b.*, p.title AS project_title, p.website_url 
+    SELECT b.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url 
     FROM backlinks b
     JOIN projects p ON b.project_id = p.id
     WHERE DATE(b.created_at) = :selDate $userFilterProj
@@ -67,7 +67,7 @@ $publishedBacklinks = $bStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // B. Failed Queue Tasks on Selected Date
 $failedSql = "
-    SELECT q.*, p.title AS project_title, p.website_url, sa.username, sa.email
+    SELECT q.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url, sa.username, sa.email
     FROM backlink_queue q
     JOIN projects p ON q.project_id = p.id
     LEFT JOIN social_accounts sa ON q.social_account_id = sa.id

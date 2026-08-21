@@ -45,7 +45,7 @@ $socialAccounts = [];
 if (!empty($projectIds)) {
     $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
     $accStmt = $db->prepare("
-        SELECT sa.*, p.title AS project_title, p.website_url 
+        SELECT sa.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url 
         FROM social_accounts sa
         JOIN projects p ON sa.project_id = p.id
         WHERE sa.project_id IN ($placeholders)
@@ -274,7 +274,7 @@ $flash = getFlash();
                   <tr>
                     <td class="fw-bold">
                       <a href="client-profile.php?id=<?= $p['id'] ?>" class="text-decoration-none text-dark">
-                        <?= htmlspecialchars($p['title'] ?? 'Untitled') ?>
+                        <?= htmlspecialchars($p['business_name'] ?: ($p['target_keyword'] ?: 'Project #' . $p['id'])) ?>
                       </a>
                     </td>
                     <td>

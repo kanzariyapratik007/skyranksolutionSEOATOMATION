@@ -39,11 +39,13 @@ if ($navUserId > 0 && $navUserRole !== 'admin') {
     } catch (Exception $e) {}
 }
 
-function isNavAllowed($menuCode, $allowedMenus) {
-    if ($allowedMenus === null) {
-        return true; // Default to allow all menus if not explicitly configured
+if (!function_exists('isNavAllowed')) {
+    function isNavAllowed($menuCode, $allowedMenus) {
+        if ($allowedMenus === null) {
+            return true; // Default to allow all menus if not explicitly configured
+        }
+        return in_array(strtolower($menuCode), $allowedMenus);
     }
-    return in_array(strtolower($menuCode), $allowedMenus);
 }
 ?>
 <nav class="navbar navbar-expand-lg navbar-light">
