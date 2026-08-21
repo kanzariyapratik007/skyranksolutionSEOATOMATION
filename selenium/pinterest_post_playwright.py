@@ -233,9 +233,18 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            log("Navigating to Pin creation tool...")
-            page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-            page.wait_for_timeout(6000)
+            log("Opening Pin creation tool...")
+            create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [aria-label*='Create' i], [data-test-id='create-button'], a[href*='pin-builder'], a[href*='creation']").first
+            if create_btn.count() > 0 and create_btn.is_visible():
+                log("Clicking Create (+) button from left navigation bar...")
+                try:
+                    create_btn.click(timeout=5000)
+                except Exception:
+                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(4000)
+            else:
+                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(5000)
             
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
