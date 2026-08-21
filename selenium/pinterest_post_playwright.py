@@ -191,12 +191,29 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             else:
                                 pw_in.press("Enter")
                             page.wait_for_timeout(5000)
-                    except Exception as e_retry:
-                        log(f"Login retry attempt {login_attempt} exception: {e_retry}")
+                # Check if session is authenticated after 3 attempts
+                logged_in = False
+                try:
+                    page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                    if "/me" not in page.url and "login" not in page.url and page.url.rstrip("/") != "https://www.pinterest.com":
+                        logged_in = True
+                except Exception:
+                    pass
 
-            # Extra stabilization wait: handle Pinterest 1-second flash redirect while reading session cookies
-            log("Waiting for Pin creation tool UI to stabilize...")
-            page.wait_for_timeout(4000)
+                if not logged_in:
+                    try:
+                        screenshot_path1 = os.path.join(script_dir, 'pinterest_login_failed.png')
+                        screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_login_failed.png')
+                        page.screenshot(path=screenshot_path1, timeout=5000)
+                        page.screenshot(path=screenshot_path2, timeout=5000)
+                        log("Saved login failure screenshot to pinterest_login_failed.png")
+                    except Exception as e_scr:
+                        log(f"Screenshot exception: {e_scr}")
+                    
+                    result(False, error=f"Pinterest login failed — please check password or email verification for {email}.")
+                    context.close()
+                    return
             try:
                 page.wait_for_url(lambda u: "login" not in u.lower() and "signup" not in u.lower(), timeout=15000)
             except Exception:
