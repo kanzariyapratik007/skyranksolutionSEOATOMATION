@@ -208,33 +208,34 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             log("Login OK! Pin builder ready.")
             
-            # Dismiss any onboarding NUX modals / topic pickers for newly created accounts
+            # Complete any onboarding NUX wizard step-by-step for newly created accounts
             try:
-                # If on NUX topic picker page, pick 5 cards to pass onboarding
-                cards = page.locator("[data-test-id='nux-picker-card'], div[role='button']:has(img)").all()
-                if len(cards) >= 5:
-                    log("New account onboarding detected — selecting topics...")
-                    for card in cards[:6]:
-                        try:
-                            card.click(timeout=2000)
-                            page.wait_for_timeout(500)
-                        except Exception:
-                            pass
-                
-                for _ in range(4):
-                    nux_btn = page.locator("button:has-text('Next'), button:has-text('Done'), [data-test-id='nux-next-button'], [data-test-id='nux-done-button'], [aria-label='Close'], button:has-text('Got it')").first
-                    if nux_btn.count() > 0 and nux_btn.is_visible():
-                        log("Dismissing Pinterest onboarding modal...")
-                        nux_btn.click(timeout=3000)
-                        page.wait_for_timeout(2000)
+                for attempt in range(5):
+                    curr_u = page.url.lower()
+                    if "nux" in curr_u or "today" in curr_u or page.locator("[data-test-id='nux-picker-card']").count() > 0:
+                        log("New account onboarding active — passing wizard step...")
+                        cards = page.locator("[data-test-id='nux-picker-card'], div[role='button']:has(img)").all()
+                        if len(cards) >= 3:
+                            for card in cards[:6]:
+                                try:
+                                    card.click(timeout=1500)
+                                    page.wait_for_timeout(300)
+                                except Exception:
+                                    pass
+                        page.wait_for_timeout(1000)
+                        next_btn = page.locator("button:has-text('Next'), button:has-text('Done'), button:has-text('Continue'), [data-test-id*='nux'], [aria-label='Close'], button:has-text('Got it')").first
+                        if next_btn.count() > 0 and next_btn.is_visible():
+                            log("Clicking onboarding Next/Done button...")
+                            next_btn.click(timeout=3000)
+                            page.wait_for_timeout(2500)
                     else:
                         break
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            if "pin-creation-tool" not in page.url.lower() and "builder" not in page.url.lower():
-                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(5000)
+            log("Navigating to Pin creation tool...")
+            page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(6000)
             
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
