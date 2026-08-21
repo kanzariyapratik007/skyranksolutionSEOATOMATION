@@ -1,9 +1,10 @@
 <?php
 // ============================================================
 // user-profile.php
-// Admin / User Profile & Connected Social Accounts Viewer
-// Allows viewing user details, associated projects, and
-// revealing social account passwords & platform configurations.
+// Admin / User Profile & Dynamic Platform Credentials Viewer
+// Renders platform-specific custom database fields (OAuth Keys,
+// API Tokens, Secrets, Passwords, Hostnames) with 👁️ Show/Hide
+// toggles and 1-click clipboard copy.
 // ============================================================
 
 require_once 'config.php';
@@ -55,71 +56,140 @@ if (!empty($projectIds)) {
     $socialAccounts = $accStmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Platform Requirements Knowledge Base
-$platformReqs = [
-    'pinterest' => [
-        'name' => 'Pinterest',
-        'icon' => 'fab fa-pinterest text-danger',
-        'auth_type' => 'Browser Automation (Playwright)',
-        'required_fields' => 'Email, Password, Board Name (Optional), Image File',
-        'desc' => 'Publishes image pins with title, rich description, and live dofollow backlink.'
-    ],
-    'medium' => [
-        'name' => 'Medium',
-        'icon' => 'fab fa-medium text-dark',
-        'auth_type' => 'API / Automation',
-        'required_fields' => 'Integration Token OR Username/Password',
-        'desc' => 'High DA (96) authoritative publication for long-form SEO articles.'
-    ],
-    'tumblr' => [
-        'name' => 'Tumblr',
-        'icon' => 'fab fa-tumblr text-primary',
-        'auth_type' => 'API / Playwright',
-        'required_fields' => 'Email, Password, Blog Subdomain/Name',
-        'desc' => 'Tier 1 & Tier 2 microblog posting with multimedia and tags.'
-    ],
-    'blogger' => [
-        'name' => 'Blogger / Blogspot',
-        'icon' => 'fab fa-blogger text-warning',
-        'auth_type' => 'Google OAuth / Token',
-        'required_fields' => 'Google Client ID, Client Secret, Blog ID',
-        'desc' => 'Google owned high authority platform with instant indexation.'
-    ],
-    'wordpress' => [
-        'name' => 'WordPress (Self-Hosted / Dotcom)',
-        'icon' => 'fab fa-wordpress text-info',
-        'auth_type' => 'REST API / App Password',
-        'required_fields' => 'WordPress URL, Username, Application Password',
-        'desc' => 'Direct automated blog posting with formatting and canonical tags.'
-    ],
-    'devto' => [
-        'name' => 'DEV.to',
-        'icon' => 'fab fa-dev text-dark',
-        'auth_type' => 'REST API',
-        'required_fields' => 'DEV.to API Key (Settings -> Extensions)',
-        'desc' => 'Tech & business high DA platform with fast Google indexing.'
-    ],
-    'livejournal' => [
-        'name' => 'LiveJournal',
-        'icon' => 'fas fa-pen-nib text-secondary',
-        'auth_type' => 'Browser Automation',
-        'required_fields' => 'Username, Password',
-        'desc' => 'Web 2.0 contextual backlink creation.'
-    ],
-    'bluesky' => [
-        'name' => 'Bluesky',
-        'icon' => 'fas fa-cloud text-info',
-        'auth_type' => 'AT Protocol API',
-        'required_fields' => 'Handle (e.g. user.bsky.social), App Password',
-        'desc' => 'Decentralized social network with instant crawlable links.'
-    ]
-];
-
-// Helper to decode password
-function getDecodedPassword($encoded) {
+// Helper to decode password/token
+function getDecodedValue($encoded) {
     if (empty($encoded)) return '';
     $decoded = base64_decode($encoded, true);
     return ($decoded !== false && trim($decoded) !== '') ? $decoded : $encoded;
+}
+
+// Dynamic Platform Parser — extracts exact platform fields
+function getPlatformFields($acc) {
+    $platform = strtolower($acc['platform'] ?? '');
+    $username = $acc['username'] ?? '';
+    $apiKey = $acc['api_key'] ?? '';
+    $apiSecret = $acc['api_secret'] ?? '';
+    $refreshToken = $acc['refresh_token'] ?? '';
+    $rawPassword = $acc['password'] ?? '';
+    $decodedPassword = getDecodedValue($rawPassword);
+
+    $fields = [];
+    $authType = 'Automation';
+    $icon = 'fas fa-share-alt text-primary';
+    $platformName = ucfirst($platform);
+
+    switch ($platform) {
+        case 'tumblr':
+            $platformName = 'Tumblr';
+            $icon = 'fab fa-tumblr text-primary';
+            $authType = 'OAuth 1.0a API';
+            $parts = explode(':', $decodedPassword);
+            $oauthToken = $parts[0] ?? $decodedPassword;
+            $oauthSecret = $parts[1] ?? '';
+
+            $fields[] = ['label' => 'Blog Hostname', 'value' => $username, 'is_secret' => false, 'hint' => 'e.g. user.tumblr.com'];
+            $fields[] = ['label' => 'OAuth Consumer Key (API Key)', 'value' => $apiKey, 'is_secret' => false, 'hint' => 'Tumblr App Key'];
+            $fields[] = ['label' => 'OAuth Consumer Secret (Secret Key)', 'value' => $apiSecret, 'is_secret' => true, 'hint' => 'Tumblr Secret Key'];
+            $fields[] = ['label' => 'OAuth Token (Access Token)', 'value' => $oauthToken, 'is_secret' => true, 'hint' => 'Tumblr OAuth Access Token'];
+            $fields[] = ['label' => 'OAuth Token Secret (Access Token Secret)', 'value' => $oauthSecret, 'is_secret' => true, 'hint' => 'Tumblr OAuth Token Secret'];
+            break;
+
+        case 'devto':
+        case 'dev.to':
+            $platformName = 'DEV.to';
+            $icon = 'fab fa-dev text-dark';
+            $authType = 'REST API';
+            $fields[] = ['label' => 'Username / Email', 'value' => $username, 'is_secret' => false];
+            if (!empty($decodedPassword)) {
+                $fields[] = ['label' => 'Password', 'value' => $decodedPassword, 'is_secret' => true];
+            }
+            $fields[] = ['label' => 'DEV.to API Key / Integration Token', 'value' => $apiKey ?: $decodedPassword, 'is_secret' => true, 'hint' => 'Generated at dev.to/settings/extensions'];
+            break;
+
+        case 'blogger':
+            $platformName = 'Blogger.com';
+            $icon = 'fab fa-blogger text-warning';
+            $authType = 'Google OAuth 2.0';
+            $fields[] = ['label' => 'Blog ID', 'value' => $username, 'is_secret' => false, 'hint' => 'Blogger unique numeric ID'];
+            $fields[] = ['label' => 'Google Client ID', 'value' => $apiKey, 'is_secret' => false];
+            $fields[] = ['label' => 'Google Client Secret', 'value' => $apiSecret, 'is_secret' => true];
+            $fields[] = ['label' => 'OAuth Refresh Token', 'value' => $refreshToken ?: $decodedPassword, 'is_secret' => true];
+            break;
+
+        case 'pinterest':
+            $platformName = 'Pinterest';
+            $icon = 'fab fa-pinterest text-danger';
+            $authType = 'Playwright Engine (Real Browser)';
+            $fields[] = ['label' => 'Pinterest Email / Account', 'value' => $username ?: ($acc['email'] ?? ''), 'is_secret' => false];
+            $fields[] = ['label' => 'Password', 'value' => $decodedPassword, 'is_secret' => true];
+            if (!empty($apiKey)) {
+                $fields[] = ['label' => 'Target Board Name', 'value' => $apiKey, 'is_secret' => false];
+            }
+            break;
+
+        case 'bluesky':
+            $platformName = 'Bluesky';
+            $icon = 'fas fa-cloud text-info';
+            $authType = 'AT Protocol API';
+            $fields[] = ['label' => 'Bluesky Handle', 'value' => $username, 'is_secret' => false, 'hint' => 'e.g. username.bsky.social'];
+            $fields[] = ['label' => 'App Password', 'value' => $decodedPassword, 'is_secret' => true, 'hint' => 'Created in Settings -> App Passwords'];
+            break;
+
+        case 'mastodon':
+            $platformName = 'Mastodon';
+            $icon = 'fab fa-mastodon text-primary';
+            $authType = 'Mastodon REST API';
+            $fields[] = ['label' => 'Instance URL', 'value' => $apiKey ?: 'https://mastodon.social', 'is_secret' => false];
+            $fields[] = ['label' => 'Account / Handle', 'value' => $username, 'is_secret' => false];
+            $fields[] = ['label' => 'Bearer Access Token', 'value' => $decodedPassword, 'is_secret' => true];
+            break;
+
+        case 'github':
+            $platformName = 'GitHub';
+            $icon = 'fab fa-github text-dark';
+            $authType = 'GitHub REST API';
+            $fields[] = ['label' => 'GitHub Username', 'value' => $username, 'is_secret' => false];
+            $fields[] = ['label' => 'Personal Access Token (PAT)', 'value' => $decodedPassword, 'is_secret' => true];
+            if (!empty($apiKey)) {
+                $fields[] = ['label' => 'Target Repository', 'value' => $apiKey, 'is_secret' => false];
+            }
+            break;
+
+        case 'medium':
+            $platformName = 'Medium';
+            $icon = 'fab fa-medium text-dark';
+            $authType = 'Integration Token API';
+            $fields[] = ['label' => 'Username / Author Name', 'value' => $username, 'is_secret' => false];
+            $fields[] = ['label' => 'Integration Token', 'value' => $apiKey ?: $decodedPassword, 'is_secret' => true];
+            break;
+
+        case 'wordpress':
+            $platformName = 'WordPress';
+            $icon = 'fab fa-wordpress text-info';
+            $authType = 'WP REST API';
+            $fields[] = ['label' => 'WordPress Site URL', 'value' => $apiKey, 'is_secret' => false, 'hint' => 'e.g. https://example.com'];
+            $fields[] = ['label' => 'Admin Username', 'value' => $username, 'is_secret' => false];
+            $fields[] = ['label' => 'Application Password', 'value' => $decodedPassword, 'is_secret' => true];
+            break;
+
+        default:
+            $platformName = ucfirst($platform);
+            $icon = 'fas fa-share-alt text-secondary';
+            $authType = 'Credentials';
+            $fields[] = ['label' => 'Username / Email', 'value' => $username ?: ($acc['email'] ?? ''), 'is_secret' => false];
+            $fields[] = ['label' => 'Password', 'value' => $decodedPassword, 'is_secret' => true];
+            if (!empty($apiKey)) {
+                $fields[] = ['label' => 'API Key / Host', 'value' => $apiKey, 'is_secret' => false];
+            }
+            break;
+    }
+
+    return [
+        'name' => $platformName,
+        'icon' => $icon,
+        'auth_type' => $authType,
+        'fields' => $fields
+    ];
 }
 
 $flash = getFlash();
@@ -140,21 +210,45 @@ $flash = getFlash();
     background: #ffffff;
     box-shadow: 0 4px 20px rgba(0,0,0,0.06);
   }
-  .account-row:hover {
-    background-color: #f8fafc;
+  .platform-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+    transition: all 0.2s ease;
   }
-  .pass-masked {
+  .platform-card:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+  }
+  .field-box {
+    background: #f8fafc;
+    border: 1px solid #edf2f7;
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .field-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .field-value {
     font-family: monospace;
-    letter-spacing: 2px;
+    font-size: 13px;
+    color: #0f172a;
+    word-break: break-all;
   }
-  .btn-reveal {
+  .btn-copy, .btn-eye {
     border: none;
     background: transparent;
-    color: #64748b;
+    color: #94a3b8;
     cursor: pointer;
-    padding: 0 6px;
+    padding: 0 4px;
+    transition: color 0.15s;
   }
-  .btn-reveal:hover {
+  .btn-copy:hover, .btn-eye:hover {
     color: #0f172a;
   }
 </style>
@@ -177,7 +271,7 @@ $flash = getFlash();
         </ol>
       </nav>
       <h3 class="fw-bold mb-0 text-dark">
-        <i class="fas fa-user-circle text-primary me-2"></i>User Profile & Connected Accounts
+        <i class="fas fa-user-circle text-primary me-2"></i>User Profile & Connected Credentials
       </h3>
     </div>
     <div>
@@ -301,16 +395,16 @@ $flash = getFlash();
     </div>
   </div>
 
-  <!-- Connected Social Accounts & Passwords Section -->
+  <!-- Dynamic Connected Platform Accounts Section -->
   <div class="card profile-card p-4 mb-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
         <h5 class="fw-bold mb-1 text-dark">
-          <i class="fas fa-key text-success me-2"></i>Connected Platform Accounts & Credentials
+          <i class="fas fa-key text-success me-2"></i>Dynamic Platform Accounts & Credentials
         </h5>
-        <p class="text-muted small mb-0">View all configured usernames, emails, and decoded passwords per platform.</p>
+        <p class="text-muted small mb-0">Exact database fields, OAuth tokens, API secrets, and passwords configured per platform.</p>
       </div>
-      <span class="badge bg-light text-dark border p-2">Total Accounts: <?= count($socialAccounts) ?></span>
+      <span class="badge bg-primary text-white p-2">Total Accounts: <?= count($socialAccounts) ?></span>
     </div>
 
     <?php if (empty($socialAccounts)): ?>
@@ -318,112 +412,101 @@ $flash = getFlash();
         <i class="fas fa-info-circle me-1"></i>No social accounts have been added yet under this user's projects.
       </div>
     <?php else: ?>
-      <div class="table-responsive">
-        <table class="table table-bordered align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Platform</th>
-              <th>Project</th>
-              <th>Username / Email</th>
-              <th>Password (Admin Reveal)</th>
-              <th>Requirements & Notes</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($socialAccounts as $acc): 
-              $platKey = strtolower($acc['platform'] ?? '');
-              $reqInfo = $platformReqs[$platKey] ?? [
-                'icon' => 'fas fa-share-alt text-secondary',
-                'name' => ucfirst($platKey),
-                'required_fields' => 'Username, Password',
-                'auth_type' => 'Automation'
-              ];
-              $decodedPass = getDecodedPassword($acc['password'] ?? '');
-              $accId = $acc['id'];
-            ?>
-              <tr class="account-row">
-                <td>
-                  <i class="<?= $reqInfo['icon'] ?> fa-lg me-2"></i>
-                  <span class="fw-bold"><?= htmlspecialchars($reqInfo['name']) ?></span>
-                </td>
-                <td class="small fw-semibold"><?= htmlspecialchars($acc['project_title'] ?? 'Project') ?></td>
-                <td>
-                  <code><?= htmlspecialchars($acc['username'] ?: $acc['email'] ?: 'N/A') ?></code>
-                </td>
-                <td>
-                  <div class="d-flex align-items-center">
-                    <span id="pass_mask_<?= $accId ?>" class="pass-masked text-muted">••••••••••</span>
-                    <span id="pass_text_<?= $accId ?>" class="fw-bold text-dark font-monospace d-none"><?= htmlspecialchars($decodedPass) ?></span>
-                    <button type="button" class="btn-reveal ms-2" onclick="togglePassword(<?= $accId ?>)" title="Show/Hide Password">
-                      <i id="eye_icon_<?= $accId ?>" class="fas fa-eye"></i>
-                    </button>
-                    <button type="button" class="btn-reveal text-primary" onclick="copyPassword('<?= htmlspecialchars($decodedPass, ENT_QUOTES) ?>')" title="Copy Password">
-                      <i class="fas fa-copy"></i>
-                    </button>
+      <div class="row g-4">
+        <?php foreach ($socialAccounts as $accIdx => $acc): 
+          $parsed = getPlatformFields($acc);
+          $accId = $acc['id'];
+        ?>
+          <div class="col-lg-6">
+            <div class="platform-card p-3 h-100 shadow-sm">
+              <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                <div class="d-flex align-items-center">
+                  <i class="<?= $parsed['icon'] ?> fa-2x me-2"></i>
+                  <div>
+                    <h6 class="fw-bold mb-0 text-dark"><?= htmlspecialchars($parsed['name']) ?></h6>
+                    <small class="text-muted fw-semibold">Project: <?= htmlspecialchars($acc['project_title'] ?? 'Project') ?></small>
                   </div>
-                </td>
-                <td class="small text-muted">
-                  <span class="badge bg-light text-dark border"><?= $reqInfo['auth_type'] ?></span>
-                  <div style="font-size: 11px; margin-top: 3px;"><?= $reqInfo['required_fields'] ?></div>
-                </td>
-                <td>
-                  <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Active</span>
-                </td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
+                </div>
+                <div>
+                  <span class="badge bg-light text-dark border"><?= $parsed['auth_type'] ?></span>
+                  <span class="badge bg-success ms-1"><i class="fas fa-check-circle me-1"></i>Active</span>
+                </div>
+              </div>
+
+              <!-- Render All Platform-Specific Dynamic Fields -->
+              <div class="d-flex flex-column gap-2">
+                <?php foreach ($parsed['fields'] as $fIdx => $fld): 
+                  $fieldId = "field_{$accId}_{$fIdx}";
+                  $val = $fld['value'] ?? '';
+                ?>
+                  <div class="field-box">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="field-label"><?= htmlspecialchars($fld['label']) ?></div>
+                      <div class="d-flex align-items-center gap-1">
+                        <?php if ($fld['is_secret']): ?>
+                          <button type="button" class="btn-eye" onclick="toggleField('<?= $fieldId ?>')" title="Show/Hide">
+                            <i id="eye_<?= $fieldId ?>" class="fas fa-eye"></i>
+                          </button>
+                        <?php endif; ?>
+                        <button type="button" class="btn-copy" onclick="copyValue('<?= htmlspecialchars($val, ENT_QUOTES) ?>')" title="Copy Value">
+                          <i class="fas fa-copy"></i>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div class="field-value">
+                      <?php if ($fld['is_secret']): ?>
+                        <span id="mask_<?= $fieldId ?>" class="text-muted" style="letter-spacing: 2px;">••••••••••••</span>
+                        <span id="val_<?= $fieldId ?>" class="fw-bold text-dark d-none"><?= htmlspecialchars($val ?: 'Empty') ?></span>
+                      <?php else: ?>
+                        <span class="text-dark fw-semibold"><?= htmlspecialchars($val ?: 'None') ?></span>
+                      <?php endif; ?>
+                    </div>
+                    
+                    <?php if (!empty($fld['hint'])): ?>
+                      <div class="text-muted small" style="font-size: 10px; margin-top: 2px;">
+                        <i class="fas fa-info-circle me-1"></i><?= htmlspecialchars($fld['hint']) ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+
+            </div>
+          </div>
+        <?php endforeach; ?>
       </div>
     <?php endif; ?>
-  </div>
-
-  <!-- Platform Requirements Reference Card -->
-  <div class="card profile-card p-4">
-    <h5 class="fw-bold mb-3 text-dark">
-      <i class="fas fa-list-check text-primary me-2"></i>Platform Requirements Reference Guide
-    </h5>
-    <div class="row g-3">
-      <?php foreach ($platformReqs as $key => $req): ?>
-        <div class="col-md-6 col-lg-3">
-          <div class="p-3 border rounded-3 bg-white h-100 shadow-sm">
-            <div class="d-flex align-items-center mb-2">
-              <i class="<?= $req['icon'] ?> fa-lg me-2"></i>
-              <h6 class="fw-bold mb-0"><?= htmlspecialchars($req['name']) ?></h6>
-            </div>
-            <div class="small text-muted mb-1"><strong>Auth:</strong> <?= $req['auth_type'] ?></div>
-            <div class="small text-secondary mb-2"><strong>Needs:</strong> <?= $req['required_fields'] ?></div>
-            <div class="small text-muted fst-italic" style="font-size: 11px;"><?= $req['desc'] ?></div>
-          </div>
-        </div>
-      <?php endforeach; ?>
-    </div>
   </div>
 
 </div>
 
 <script>
-function togglePassword(accId) {
-  const maskEl = document.getElementById('pass_mask_' + accId);
-  const textEl = document.getElementById('pass_text_' + accId);
-  const iconEl = document.getElementById('eye_icon_' + accId);
+function toggleField(fieldId) {
+  const maskEl = document.getElementById('mask_' + fieldId);
+  const valEl = document.getElementById('val_' + fieldId);
+  const eyeEl = document.getElementById('eye_' + fieldId);
   
-  if (textEl.classList.contains('d-none')) {
-    textEl.classList.remove('d-none');
+  if (valEl.classList.contains('d-none')) {
+    valEl.classList.remove('d-none');
     maskEl.classList.add('d-none');
-    iconEl.classList.remove('fa-eye');
-    iconEl.classList.add('fa-eye-slash');
+    eyeEl.classList.remove('fa-eye');
+    eyeEl.classList.add('fa-eye-slash');
   } else {
-    textEl.classList.add('d-none');
+    valEl.classList.add('d-none');
     maskEl.classList.remove('d-none');
-    iconEl.classList.remove('fa-eye-slash');
-    iconEl.classList.add('fa-eye');
+    eyeEl.classList.remove('fa-eye-slash');
+    eyeEl.classList.add('fa-eye');
   }
 }
 
-function copyPassword(pass) {
-  navigator.clipboard.writeText(pass).then(() => {
-    alert('Password copied to clipboard!');
+function copyValue(val) {
+  if (!val) {
+    alert('Field is empty');
+    return;
+  }
+  navigator.clipboard.writeText(val).then(() => {
+    alert('Copied to clipboard!');
   }).catch(err => {
     console.error('Failed to copy', err);
   });
