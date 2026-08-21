@@ -1,9 +1,10 @@
 <?php
 // ============================================================
 // daily-reports.php
-// Date-Filtered Daily Backlink & Account Failure Analytics
-// Displays date-wise live published backlinks, failed accounts,
-// exact error diagnostic root causes, and one-click re-queue actions.
+// Date & User-Filtered Daily Backlink & Account Failure Analytics
+// Allows filtering by single Date + User/Client, displaying live
+// published backlinks, failed accounts, diagnostic error root causes,
+// and one-click re-queue actions.
 // ============================================================
 
 require_once 'config.php';
@@ -12,6 +13,9 @@ requireLogin();
 $db = getDB();
 $isAdmin = (($_SESSION['role'] ?? 'client') === 'admin');
 $userId = (int)($_SESSION['user_id'] ?? 0);
+
+// Fetch list of all registered users for Admin dropdown
+$userList = $isAdmin ? $db->query("SELECT id, username, email FROM users ORDER BY username ASC")->fetchAll(PDO::FETCH_ASSOC) : [];
 
 // Handle AJAX One-Click Retry for Failed Task
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['retry_task_id'])) {
@@ -40,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['retry_task_id'])) {
     exit;
 }
 
-// 1. Date Filter Determination
+// 1. Date & User Filter Determination
 $selectedDate = isset($_GET['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['date']) 
     ? $_GET['date'] 
     : date('Y-m-d');
@@ -50,14 +54,23 @@ if ($filterPreset === 'yesterday') {
     $selectedDate = date('Y-m-d', strtotime('-1 day'));
 }
 
-// 2. Fetch Selected Date's Metrics & Published Backlinks
-$userFilterProj = $isAdmin ? "" : " AND p.user_id = $userId";
+// User filter logic
+$filterUserId = 0;
+if ($isAdmin) {
+    $filterUserId = isset($_GET['user_id']) && $_GET['user_id'] !== '' ? (int)$_GET['user_id'] : 0;
+} else {
+    $filterUserId = $userId;
+}
 
+$userFilterProj = $filterUserId > 0 ? " AND p.user_id = $filterUserId" : "";
+
+// 2. Fetch Selected Date's Metrics & Published Backlinks
 // A. Published Backlinks on Selected Date
 $backlinksSql = "
-    SELECT b.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url 
+    SELECT b.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url, u.username AS client_username 
     FROM backlinks b
     JOIN projects p ON b.project_id = p.id
+    LEFT JOIN users u ON p.user_id = u.id
     WHERE DATE(b.created_at) = :selDate $userFilterProj
     ORDER BY b.id DESC
 ";
@@ -67,9 +80,10 @@ $publishedBacklinks = $bStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // B. Failed Queue Tasks on Selected Date
 $failedSql = "
-    SELECT q.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url, sa.username, sa.email
+    SELECT q.*, COALESCE(p.business_name, p.target_keyword, p.website_url, 'Project') AS project_title, p.website_url, sa.username, sa.email, u.username AS client_username
     FROM backlink_queue q
     JOIN projects p ON q.project_id = p.id
+    LEFT JOIN users u ON p.user_id = u.id
     LEFT JOIN social_accounts sa ON q.social_account_id = sa.id
     WHERE DATE(q.created_at) = :selDate AND q.status = 'failed' $userFilterProj
     ORDER BY q.id DESC
@@ -152,31 +166,53 @@ $flash = getFlash();
 
 <div class="container py-4">
 
-  <!-- Header & Date Filter Form -->
+  <!-- Header & Filter Form -->
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
       <h3 class="fw-bold mb-0 text-dark">
         <i class="fas fa-calendar-check text-primary me-2"></i>Daily Backlink & Account Health Report
       </h3>
-      <p class="text-muted small mb-0">Date-wise backlink generation tracking, success verification, and error root-cause analytics.</p>
+      <p class="text-muted small mb-0">Date & User-wise backlink generation tracking, success verification, and error root-cause analytics.</p>
     </div>
 
-    <!-- Date Picker & Filter Controls -->
+    <!-- Date Picker, User Dropdown & Filter Controls -->
     <form method="GET" action="daily-reports.php" class="d-flex flex-wrap align-items-center gap-2">
+      <!-- Quick Date Presets -->
       <div class="btn-group" role="group">
-        <a href="daily-reports.php?preset=today&date=<?= date('Y-m-d') ?>" class="btn btn-sm <?= $selectedDate === date('Y-m-d') ? 'btn-primary' : 'btn-outline-secondary' ?>">
+        <a href="daily-reports.php?preset=today&date=<?= date('Y-m-d') ?><?= $filterUserId > 0 ? '&user_id='.$filterUserId : '' ?>" class="btn btn-sm <?= $selectedDate === date('Y-m-d') ? 'btn-primary' : 'btn-outline-secondary' ?>">
           Today
         </a>
-        <a href="daily-reports.php?preset=yesterday&date=<?= date('Y-m-d', strtotime('-1 day')) ?>" class="btn btn-sm <?= $selectedDate === date('Y-m-d', strtotime('-1 day')) ? 'btn-primary' : 'btn-outline-secondary' ?>">
+        <a href="daily-reports.php?preset=yesterday&date=<?= date('Y-m-d', strtotime('-1 day')) ?><?= $filterUserId > 0 ? '&user_id='.$filterUserId : '' ?>" class="btn btn-sm <?= $selectedDate === date('Y-m-d', strtotime('-1 day')) ? 'btn-primary' : 'btn-outline-secondary' ?>">
           Yesterday
         </a>
       </div>
 
-      <div class="input-group input-group-sm" style="width: 200px;">
+      <!-- Date Input -->
+      <div class="input-group input-group-sm" style="width: 175px;">
         <span class="input-group-text bg-white"><i class="fas fa-calendar-alt text-muted"></i></span>
         <input type="date" name="date" class="form-control" value="<?= htmlspecialchars($selectedDate) ?>" onchange="this.form.submit()">
       </div>
+
+      <!-- User Dropdown Filter (For Admin) -->
+      <?php if ($isAdmin): ?>
+        <div class="input-group input-group-sm" style="min-width: 200px;">
+          <span class="input-group-text bg-white"><i class="fas fa-user text-muted"></i></span>
+          <select name="user_id" class="form-select" onchange="this.form.submit()">
+            <option value="">👤 All Users / Clients</option>
+            <?php foreach ($userList as $u): ?>
+              <option value="<?= $u['id'] ?>" <?= $filterUserId === (int)$u['id'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['email']) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      <?php endif; ?>
+
       <button type="submit" class="btn btn-sm btn-dark"><i class="fas fa-filter me-1"></i>Filter</button>
+      
+      <?php if ($filterUserId > 0 || $selectedDate !== date('Y-m-d')): ?>
+        <a href="daily-reports.php" class="btn btn-sm btn-outline-danger" title="Reset Filters"><i class="fas fa-times"></i></a>
+      <?php endif; ?>
     </form>
   </div>
 
@@ -260,7 +296,7 @@ $flash = getFlash();
         <?php if (empty($publishedBacklinks)): ?>
           <div class="text-center py-5 text-muted">
             <i class="fas fa-link-slash fa-3x mb-2 text-secondary"></i>
-            <p>No backlinks were created on <?= date('d M Y', strtotime($selectedDate)) ?>.</p>
+            <p>No backlinks were created for this selection on <?= date('d M Y', strtotime($selectedDate)) ?>.</p>
             <a href="submission-manager.php" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane me-1"></i>Start Auto-Post Queue</a>
           </div>
         <?php else: ?>
@@ -269,6 +305,7 @@ $flash = getFlash();
               <thead class="table-light">
                 <tr>
                   <th>Platform</th>
+                  <?php if ($isAdmin): ?><th>User / Client</th><?php endif; ?>
                   <th>Project Name</th>
                   <th>Keyword / Title</th>
                   <th>Live Clickable URL</th>
@@ -283,6 +320,11 @@ $flash = getFlash();
                         <i class="fas fa-share-alt me-1 text-primary"></i><?= htmlspecialchars(ucfirst($link['platform'])) ?>
                       </span>
                     </td>
+                    <?php if ($isAdmin): ?>
+                      <td>
+                        <span class="badge bg-light text-dark border"><i class="fas fa-user me-1 text-secondary"></i><?= htmlspecialchars($link['client_username'] ?? 'User') ?></span>
+                      </td>
+                    <?php endif; ?>
                     <td class="fw-bold"><?= htmlspecialchars($link['project_title'] ?? 'Project') ?></td>
                     <td>
                       <span class="badge bg-info text-dark"><?= htmlspecialchars($link['keyword'] ?: ($link['post_title'] ?: 'Backlink')) ?></span>
@@ -318,6 +360,7 @@ $flash = getFlash();
                 <tr>
                   <th>Task ID</th>
                   <th>Platform & Account</th>
+                  <?php if ($isAdmin): ?><th>User / Client</th><?php endif; ?>
                   <th>Project</th>
                   <th>Exact Failure Reason & Diagnostic</th>
                   <th>Status & Resolution</th>
@@ -334,6 +377,11 @@ $flash = getFlash();
                       <span class="badge bg-danger text-white me-1"><?= ucfirst($f['platform']) ?></span>
                       <div class="small text-muted mt-1"><?= htmlspecialchars($accEmail) ?></div>
                     </td>
+                    <?php if ($isAdmin): ?>
+                      <td>
+                        <span class="badge bg-light text-dark border"><i class="fas fa-user me-1 text-secondary"></i><?= htmlspecialchars($f['client_username'] ?? 'User') ?></span>
+                      </td>
+                    <?php endif; ?>
                     <td class="small fw-bold"><?= htmlspecialchars($f['project_title'] ?? 'Project') ?></td>
                     <td>
                       <div class="p-2 rounded bg-light border text-danger small font-monospace">
@@ -379,7 +427,10 @@ function retryFailedTask(taskId) {
       const row = document.getElementById('task_row_' + taskId);
       if (row) {
         row.style.backgroundColor = '#d1fae5';
-        row.querySelector('td:nth-child(5)').innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Re-queued</span>';
+        const statusCell = row.querySelector('td:nth-child(<?= $isAdmin ? 6 : 5 ?>)');
+        if (statusCell) {
+          statusCell.innerHTML = '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Re-queued</span>';
+        }
       }
     } else {
       alert('Error: ' + data.error);
