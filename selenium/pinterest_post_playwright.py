@@ -234,12 +234,19 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log(f"NUX onboarding bypass check: {e_nux}")
 
             log("Opening Pin creation tool...")
-            create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [aria-label*='Create' i], [data-test-id='create-button'], a[href*='pin-builder'], a[href*='creation']").first
+            create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [aria-label*='Create' i], [data-test-id='create-button']").first
             if create_btn.count() > 0 and create_btn.is_visible():
                 log("Clicking Create (+) button from left navigation bar...")
                 try:
                     create_btn.click(timeout=5000)
-                except Exception:
+                    page.wait_for_timeout(1500)
+                    # Click "Pin" from the popover menu
+                    pin_menu = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin'), a[href*='pin-creation-tool'], a[href*='pin-builder']").first
+                    if pin_menu.count() > 0 and pin_menu.is_visible():
+                        log("Clicking 'Pin' from Create menu...")
+                        pin_menu.click(timeout=3000)
+                except Exception as e_cr:
+                    log(f"Create button click exception: {e_cr}")
                     page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(4000)
             else:
@@ -257,16 +264,24 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         image_path = imgs[0]
                         log(f"Auto-selected image from uploads: {image_path}")
 
+            image_uploaded = False
             if image_path and os.path.exists(image_path):
                 log(f"Uploading image: {os.path.basename(image_path)}...")
                 try:
                     file_input = page.locator("input[type='file'], input[data-test-id*='upload'], input[data-test-id*='storyboard'], [data-test-id='media-upload-input']").first
-                    file_input.wait_for(state="attached", timeout=15000)
+                    file_input.wait_for(state="attached", timeout=12000)
                     file_input.set_input_files(os.path.abspath(image_path))
-                    page.wait_for_timeout(8000)
+                    page.wait_for_timeout(6000)
                     log("Image uploaded!")
+                    image_uploaded = True
                 except Exception as e:
                     log(f"Image upload: {e}")
+            
+            if not image_uploaded:
+                log("Pin builder canvas file input not ready — halting execution.")
+                result(False, error="Pin builder UI inputs not found — please check Pinterest account.")
+                context.close()
+                return
             
             # ── Step 4: Title ──────────────────────────────────────────
             title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
