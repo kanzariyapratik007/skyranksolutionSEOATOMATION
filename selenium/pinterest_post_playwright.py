@@ -191,6 +191,9 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             else:
                                 pw_in.press("Enter")
                             page.wait_for_timeout(5000)
+                    except Exception as e_retry:
+                        log(f"Login retry attempt {login_attempt} exception: {e_retry}")
+
                 # Check if session is authenticated after 3 attempts
                 logged_in = False
                 try:
