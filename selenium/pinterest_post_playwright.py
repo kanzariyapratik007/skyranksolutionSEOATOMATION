@@ -234,24 +234,19 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log(f"NUX onboarding bypass check: {e_nux}")
 
             log("Opening Pin creation tool...")
-            create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [aria-label*='Create' i], [data-test-id='create-button']").first
-            if create_btn.count() > 0 and create_btn.is_visible():
-                log("Clicking Create (+) button from left navigation bar...")
+            try:
+                page.goto("https://www.pinterest.com/idea-pin-builder/", wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(3000)
+            except Exception:
+                pass
+
+            file_check = page.locator("input[type='file']").first
+            if file_check.count() == 0:
                 try:
-                    create_btn.click(timeout=5000)
-                    page.wait_for_timeout(1500)
-                    # Click "Pin" from the popover menu
-                    pin_menu = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin'), a[href*='pin-creation-tool'], a[href*='pin-builder']").first
-                    if pin_menu.count() > 0 and pin_menu.is_visible():
-                        log("Clicking 'Pin' from Create menu...")
-                        pin_menu.click(timeout=3000)
-                except Exception as e_cr:
-                    log(f"Create button click exception: {e_cr}")
-                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(4000)
-            else:
-                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(5000)
+                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(4000)
+                except Exception:
+                    pass
             
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
