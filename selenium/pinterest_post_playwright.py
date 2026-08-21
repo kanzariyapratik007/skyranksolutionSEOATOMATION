@@ -233,12 +233,30 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            log(f"Opening Pin creation canvas (URL: {page.url})...")
-            try:
-                page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(5000)
-            except Exception as e_pb:
-                log(f"Pin builder navigation exception: {e_pb}")
+            log(f"Opening Pin creation canvas (Current URL: {page.url})...")
+            # Try clicking top/left SPA Create button first
+            create_btn = page.locator("a[href*='pin-builder'], [data-test-id='header-create-button'], [data-test-id='create-pin-button'], button:has-text('Create'), div[aria-label*='Create' i]").first
+            if create_btn.count() > 0 and create_btn.is_visible():
+                log("Clicking Create button from navigation UI...")
+                try:
+                    create_btn.click(timeout=5000)
+                    page.wait_for_timeout(3000)
+                    # Click "Pin" if popover menu opened
+                    pin_sub = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), a[href*='pin-builder']").first
+                    if pin_sub.count() > 0 and pin_sub.is_visible():
+                        pin_sub.click(timeout=3000)
+                        page.wait_for_timeout(3000)
+                except Exception as e_c:
+                    log(f"Create button click exception: {e_c}")
+
+            # If input not present yet, do direct page navigation
+            if page.locator("input[type='file']").count() == 0:
+                try:
+                    log("Navigating directly to https://www.pinterest.com/pin-builder/...")
+                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(5000)
+                except Exception as e_pb:
+                    log(f"Pin builder navigation exception: {e_pb}")
 
             # Dismiss any dialogs / overlays covering the Pin builder
             for _ in range(3):
@@ -260,12 +278,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     debug_img = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_builder_debug.png')
                     page.screenshot(path=debug_img, timeout=5000)
                     log(f"Saved debug screenshot to pinterest_builder_debug.png")
-                except Exception:
-                    pass
-                log("Trying /pin-creation-tool/ fallback...")
-                try:
-                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(5000)
                 except Exception:
                     pass
             
