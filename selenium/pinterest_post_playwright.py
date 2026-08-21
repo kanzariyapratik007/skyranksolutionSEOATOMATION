@@ -177,30 +177,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     except Exception as e_rl:
                         log(f"Rate limit fallback exception: {e_rl}")
 
-                # Verify if login succeeded by checking if email input or error alert is still visible
-                email_still_visible = page.locator("input[type='email'], input#email, input[name='username']").first
-                err_elem = page.locator("[data-test-id='login-error-message'], .formErrorMessage, [role='alert']").first
-
-                if (email_still_visible.count() > 0 and email_still_visible.is_visible()) or (err_elem.count() > 0 and err_elem.is_visible()):
-                    err_detail = f"Pinterest login failed — please check password for {email} or try again."
-                    if err_elem.count() > 0 and err_elem.is_visible():
-                        err_detail = f"Pinterest Error: {err_elem.inner_text().strip()}"
-                    
-                    try:
-                        screenshot_path1 = os.path.join(script_dir, 'pinterest_error.png')
-                        screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_error.png')
-                        page.screenshot(path=screenshot_path1, timeout=5000)
-                        page.screenshot(path=screenshot_path2, timeout=5000)
-                    except Exception as e_scr:
-                        log(f"Screenshot exception: {e_scr}")
-                    log(f"Saved login failure screenshot to pinterest_error.png ({err_detail})")
-                    result(False, error=err_detail)
-                    context.close()
-                    return
-
-                log("Login form submitted successfully. Verifying session via /me/...")
+                # Bypass login error halting as requested — force navigation to Pin builder
+                log("Proceeding directly to Pin Builder session verification...")
                 try:
-                    page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
+                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=30000)
                     page.wait_for_timeout(3000)
                 except Exception:
                     pass
