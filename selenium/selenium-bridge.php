@@ -238,13 +238,6 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
     $args[] = $aiDesc;
 
     $result = runSeleniumScript('pinterest_post_playwright.py', $args, 240);
-    if (empty($result['success'])) {
-        // Fallback to legacy Selenium only if Playwright script was missing or produced no result
-        $err = $result['error'] ?? '';
-        if (empty($err) || strpos($err, 'No result from') !== false) {
-            $result = runSeleniumScript('pinterest_post.py', $args, 240);
-        }
-    }
 
     if (!empty($result['success'])) {
         if (!empty($result['url']) && !empty($creds['id'])) {
