@@ -208,6 +208,23 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             log("Login OK! Pin builder ready.")
             
+            # Dismiss any onboarding NUX modals for newly created accounts
+            for _ in range(3):
+                try:
+                    nux_btn = page.locator("button:has-text('Next'), button:has-text('Done'), [data-test-id='nux-next-button'], [data-test-id='nux-done-button'], [aria-label='Close'], button:has-text('Got it')").first
+                    if nux_btn.count() > 0 and nux_btn.is_visible():
+                        log("Dismissing Pinterest onboarding modal...")
+                        nux_btn.click(timeout=3000)
+                        page.wait_for_timeout(2000)
+                    else:
+                        break
+                except Exception:
+                    break
+
+            if "pin-creation-tool" not in page.url.lower() and "builder" not in page.url.lower():
+                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(5000)
+            
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
                 uploads_dir = os.path.join(os.path.dirname(script_dir), 'uploads')
