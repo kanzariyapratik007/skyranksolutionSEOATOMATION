@@ -6,7 +6,19 @@
  */
 
 if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-    define('PYTHON_EXE', 'C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe');
+    $winPyCandidates = [
+        'C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python314\\python.exe',
+        'C:\\Users\\ADMIN\\AppData\\Local\\Programs\\Python\\Python311\\python.exe',
+        'python'
+    ];
+    $foundPy = 'python';
+    foreach ($winPyCandidates as $pyPath) {
+        if (file_exists($pyPath)) {
+            $foundPy = $pyPath;
+            break;
+        }
+    }
+    define('PYTHON_EXE', $foundPy);
 } else {
     define('PYTHON_EXE', '/usr/bin/python3');
 }
