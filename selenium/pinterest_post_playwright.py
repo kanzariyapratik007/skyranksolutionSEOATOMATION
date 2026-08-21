@@ -90,111 +90,56 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             
             if not already_logged:
                 log("Session expired or not logged in — logging in...")
-                log("Navigating to Pinterest home page...")
-                page.goto("https://www.pinterest.com/", wait_until="domcontentloaded", timeout=60000)
+                log("Navigating directly to Pinterest /login/ page...")
+                page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(3000)
                 
-                # Click Log in button on home page to open modal
-                login_btn = page.locator("[data-test-id='simple-login-button'], button:has-text('Log in'), div[role='button']:has-text('Log in'), a[href*='/login/']").first
-                if login_btn.count() > 0 and login_btn.is_visible():
-                    log("Opening Pinterest login modal from home page...")
-                    login_btn.click(timeout=5000)
-                    page.wait_for_timeout(2000)
-                else:
-                    log("Navigating to Pinterest /login/ page...")
-                    page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(3000)
-                
-                # Email input — human typing + React events
-                email_input = page.locator("input[type='email'], input#email, input[name='username']").first
-                email_input.wait_for(state="visible", timeout=20000)
-                email_input.click()
-                try:
-                    email_input.press_sequentially(email, delay=40)
-                except Exception:
-                    email_input.fill(email)
-                email_input.dispatch_event("input")
-                email_input.dispatch_event("change")
+                # Check if email input is visible, or open modal if on home page
+                em_in = page.locator("input[type='email'], input#email, input[name='username'], input[id*='email']").first
+                if not (em_in.count() > 0 and em_in.is_visible()):
+                    login_btn = page.locator("[data-test-id='simple-login-button'], button:has-text('Log in'), div[role='button']:has-text('Log in')").first
+                    if login_btn.count() > 0 and login_btn.is_visible():
+                        login_btn.click()
+                        page.wait_for_timeout(2000)
+
+                em_in = page.locator("input[type='email'], input#email, input[name='username'], input[id*='email']").first
+                em_in.wait_for(state="visible", timeout=20000)
+                em_in.click()
+                em_in.fill("")
+                em_in.type(email, delay=40)
+                em_in.dispatch_event("input")
+                em_in.dispatch_event("change")
                 page.wait_for_timeout(1000)
                 
-                # Password input — human typing + React events
-                pass_input = page.locator("input[type='password'], input#password, input[name='password']").first
-                pass_input.click()
+                pw_in = page.locator("input[type='password'], input#password, input[name='password'], input[id*='password']").first
+                pw_in.click()
+                pw_in.fill("")
+                pw_in.type(password, delay=40)
+                pw_in.dispatch_event("input")
+                pw_in.dispatch_event("change")
+                page.wait_for_timeout(1000)
+                
+                sub = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton']").first
+                if sub.count() > 0 and sub.is_visible():
+                    log("Submitting Pinterest login form via trusted click...")
+                    sub.click(timeout=5000)
+                else:
+                    log("Submitting via Enter key...")
+                    pw_in.press("Enter")
+                
+                page.wait_for_timeout(6000)
+                
+                # Capture exact screen state after submit BEFORE any redirect action
                 try:
-                    pass_input.press_sequentially(password, delay=40)
+                    screenshot_path1 = os.path.join(script_dir, 'pinterest_login_failed.png')
+                    screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_login_failed.png')
+                    page.screenshot(path=screenshot_path1, timeout=5000)
+                    page.screenshot(path=screenshot_path2, timeout=5000)
                 except Exception:
-                    pass_input.fill(password)
-                pass_input.dispatch_event("input")
-                pass_input.dispatch_event("change")
-                page.wait_for_timeout(1500)
-                
-                page.wait_for_timeout(3000)
-                
-                # Submit exclusively via modal submit button or Enter key
-                try:
-                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], form button").first
-                    if submit_btn.count() > 0 and submit_btn.is_visible():
-                        log("Submitting Pinterest login form via trusted click...")
-                        submit_btn.click(timeout=5000)
-                    else:
-                        log("Submit button not found — pressing Enter key...")
-                        pass_input.press("Enter")
-                except Exception as e_sub:
-                    log(f"Submit exception: {e_sub}")
-                    try:
-                        pass_input.press("Enter")
-                    except Exception:
-                        pass
-                
-                page.wait_for_timeout(4000)
-                
-                # Login verification loop — retry up to 3 times if session is not active
-                for login_attempt in range(1, 4):
-                    log(f"Login attempt {login_attempt}/3 — verifying session via /me/...")
-                    try:
-                        page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
-                        page.wait_for_timeout(3000)
-                        if "/me" not in page.url and "login" not in page.url and page.url.rstrip("/") != "https://www.pinterest.com":
-                            log(f"Login OK! Validated active session at profile URL: {page.url}")
-                            break
-                    except Exception:
-                        pass
-                    
-                    log(f"Session not active yet — retrying direct login submission (Attempt {login_attempt}/3)...")
-                    page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(3000)
-                    try:
-                        # Open login modal if redirected to home page
-                        login_btn = page.locator("div[role='button']:has-text('Log in'), button:has-text('Log in'), [data-test-id='simple-login-button']").first
-                        if login_btn.count() > 0 and login_btn.is_visible():
-                            login_btn.click()
-                            page.wait_for_timeout(2000)
+                    pass
 
-                        em_in = page.locator("input[type='email'], input#email, input[name='username']").first
-                        if em_in.count() > 0 and em_in.is_visible():
-                            em_in.click()
-                            em_in.fill("")
-                            em_in.type(email, delay=30)
-                            em_in.dispatch_event("input")
-                            page.wait_for_timeout(1000)
-                            
-                            pw_in = page.locator("input[type='password'], input#password, input[name='password']").first
-                            pw_in.click()
-                            pw_in.fill("")
-                            pw_in.type(password, delay=30)
-                            pw_in.dispatch_event("input")
-                            page.wait_for_timeout(1500)
-                            
-                            sub = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], form button").first
-                            if sub.count() > 0 and sub.is_visible():
-                                sub.click(timeout=5000)
-                            else:
-                                pw_in.press("Enter")
-                            page.wait_for_timeout(5000)
-                    except Exception as e_retry:
-                        log(f"Login retry attempt {login_attempt} exception: {e_retry}")
-
-                # Check if session is authenticated after 3 attempts
+                # Check if session is authenticated
+                log("Verifying session via /me/...")
                 logged_in = False
                 try:
                     page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
@@ -205,15 +150,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass
 
                 if not logged_in:
-                    try:
-                        screenshot_path1 = os.path.join(script_dir, 'pinterest_login_failed.png')
-                        screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_login_failed.png')
-                        page.screenshot(path=screenshot_path1, timeout=5000)
-                        page.screenshot(path=screenshot_path2, timeout=5000)
-                        log("Saved login failure screenshot to pinterest_login_failed.png")
-                    except Exception as e_scr:
-                        log(f"Screenshot exception: {e_scr}")
-                    
+                    log(f"Login failure — check screenshot at pinterest_login_failed.png (Current URL: {page.url})")
                     result(False, error=f"Pinterest login failed — please check password or email verification for {email}.")
                     context.close()
                     return
