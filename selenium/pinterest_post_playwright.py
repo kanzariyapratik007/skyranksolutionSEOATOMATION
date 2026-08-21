@@ -26,7 +26,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
     
     import hashlib
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
-    profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}_{sys_user}')
+    profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}')
     
     # Clean up lock files from any previous crashed runs
     if os.path.exists(profile_dir):
