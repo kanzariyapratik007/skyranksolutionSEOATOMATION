@@ -148,25 +148,42 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
                 page.wait_for_timeout(4000)
                 
-                # Retry submit if Pinterest shows rate limit "We could not complete that request"
-                err_check = page.locator("[data-test-id='login-error-message'], .formErrorMessage, [role='alert']").first
-                if err_check.count() > 0 and err_check.is_visible() and "could not complete" in err_check.inner_text().lower():
-                    log("Rate limit message detected — fallback to direct /login/ page with human delays...")
+                # Login verification loop — retry up to 3 times if session is not active
+                for login_attempt in range(1, 4):
+                    log(f"Login attempt {login_attempt}/3 — verifying session via /me/...")
+                    try:
+                        page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
+                        page.wait_for_timeout(3000)
+                        if "/me" not in page.url and "login" not in page.url and page.url.rstrip("/") != "https://www.pinterest.com":
+                            log(f"Login OK! Validated active session at profile URL: {page.url}")
+                            break
+                    except Exception:
+                        pass
+                    
+                    log(f"Session not active yet — retrying direct login submission (Attempt {login_attempt}/3)...")
                     page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
                     page.wait_for_timeout(3000)
                     try:
+                        # Open login modal if redirected to home page
+                        login_btn = page.locator("div[role='button']:has-text('Log in'), button:has-text('Log in'), [data-test-id='simple-login-button']").first
+                        if login_btn.count() > 0 and login_btn.is_visible():
+                            login_btn.click()
+                            page.wait_for_timeout(2000)
+
                         em_in = page.locator("input[type='email'], input#email, input[name='username']").first
                         if em_in.count() > 0 and em_in.is_visible():
                             em_in.click()
-                            em_in.fill(email)
+                            em_in.fill("")
+                            em_in.type(email, delay=30)
                             em_in.dispatch_event("input")
-                            page.wait_for_timeout(1500)
+                            page.wait_for_timeout(1000)
                             
                             pw_in = page.locator("input[type='password'], input#password, input[name='password']").first
                             pw_in.click()
-                            pw_in.fill(password)
+                            pw_in.fill("")
+                            pw_in.type(password, delay=30)
                             pw_in.dispatch_event("input")
-                            page.wait_for_timeout(2000)
+                            page.wait_for_timeout(1500)
                             
                             sub = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button']").first
                             if sub.count() > 0 and sub.is_visible():
@@ -174,16 +191,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             else:
                                 pw_in.press("Enter")
                             page.wait_for_timeout(5000)
-                    except Exception as e_rl:
-                        log(f"Rate limit fallback exception: {e_rl}")
-
-                # Bypass login error halting as requested — force navigation to Pin builder
-                log("Proceeding directly to Pin Builder session verification...")
-                try:
-                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=30000)
-                    page.wait_for_timeout(3000)
-                except Exception:
-                    pass
+                    except Exception as e_retry:
+                        log(f"Login retry attempt {login_attempt} exception: {e_retry}")
 
             # Extra stabilization wait: handle Pinterest 1-second flash redirect while reading session cookies
             log("Waiting for Pin creation tool UI to stabilize...")
