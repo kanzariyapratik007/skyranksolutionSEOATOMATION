@@ -208,9 +208,20 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             log("Login OK! Pin builder ready.")
             
-            # Dismiss any onboarding NUX modals for newly created accounts
-            for _ in range(3):
-                try:
+            # Dismiss any onboarding NUX modals / topic pickers for newly created accounts
+            try:
+                # If on NUX topic picker page, pick 5 cards to pass onboarding
+                cards = page.locator("[data-test-id='nux-picker-card'], div[role='button']:has(img)").all()
+                if len(cards) >= 5:
+                    log("New account onboarding detected — selecting topics...")
+                    for card in cards[:6]:
+                        try:
+                            card.click(timeout=2000)
+                            page.wait_for_timeout(500)
+                        except Exception:
+                            pass
+                
+                for _ in range(4):
                     nux_btn = page.locator("button:has-text('Next'), button:has-text('Done'), [data-test-id='nux-next-button'], [data-test-id='nux-done-button'], [aria-label='Close'], button:has-text('Got it')").first
                     if nux_btn.count() > 0 and nux_btn.is_visible():
                         log("Dismissing Pinterest onboarding modal...")
@@ -218,8 +229,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         page.wait_for_timeout(2000)
                     else:
                         break
-                except Exception:
-                    break
+            except Exception as e_nux:
+                log(f"NUX onboarding bypass check: {e_nux}")
 
             if "pin-creation-tool" not in page.url.lower() and "builder" not in page.url.lower():
                 page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
@@ -239,7 +250,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             if image_path and os.path.exists(image_path):
                 log(f"Uploading image: {os.path.basename(image_path)}...")
                 try:
-                    file_input = page.locator("input[type='file'], input[data-test-id='storyboard-upload-input']").first
+                    file_input = page.locator("input[type='file'], input[data-test-id*='upload'], input[data-test-id*='storyboard'], [data-test-id='media-upload-input']").first
                     file_input.wait_for(state="attached", timeout=15000)
                     file_input.set_input_files(os.path.abspath(image_path))
                     page.wait_for_timeout(8000)
@@ -251,7 +262,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
             log("Filling title...")
             try:
-                title_input = page.locator("#storyboard-selector-title, input[id*='storyboard-selector-title'], textarea[id*='storyboard-selector-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], [data-test-id='pin-builder-title']").first
+                title_input = page.locator("#storyboard-selector-title, input[id*='storyboard-selector-title'], textarea[id*='storyboard-selector-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], [data-test-id='pin-builder-title'], [data-test-id='pin-draft-title']").first
                 title_input.wait_for(state="visible", timeout=10000)
                 title_input.click()
                 title_input.fill(title[:100])
