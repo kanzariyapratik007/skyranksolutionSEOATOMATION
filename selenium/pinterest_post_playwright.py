@@ -163,32 +163,33 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         pass
                     page.wait_for_timeout(5000)
 
-                try:
-                    page.wait_for_url(lambda u: "login" not in u.lower() and "signup" not in u.lower(), timeout=25000)
-                except Exception:
-                    pass
+                # Verify if login succeeded by checking if email input or error alert is still visible
+                email_still_visible = page.locator("input[type='email'], input#email, input[name='username']").first
+                err_elem = page.locator("[data-test-id='login-error-message'], .formErrorMessage, [role='alert']").first
 
-                current_after = page.url.lower()
-                if ("login" in current_after or "signup" in current_after) and page.locator("input[type='email']").count() > 0:
+                if (email_still_visible.count() > 0 and email_still_visible.is_visible()) or (err_elem.count() > 0 and err_elem.is_visible()):
                     err_detail = f"Pinterest login failed — please check password for {email} or try again."
+                    if err_elem.count() > 0 and err_elem.is_visible():
+                        err_detail = f"Pinterest Error: {err_elem.inner_text().strip()}"
+                    
                     try:
                         screenshot_path1 = os.path.join(script_dir, 'pinterest_error.png')
                         screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_error.png')
                         page.screenshot(path=screenshot_path1, timeout=5000)
                         page.screenshot(path=screenshot_path2, timeout=5000)
-                        # Check for visible error messages on Pinterest screen
-                        err_elem = page.locator("[data-test-id='login-error-message'], .formErrorMessage, [role='alert']").first
-                        if err_elem.count() > 0 and err_elem.is_visible():
-                            err_detail = f"Pinterest Error: {err_elem.inner_text()}"
                     except Exception as e_scr:
                         log(f"Screenshot exception: {e_scr}")
                     log(f"Saved login failure screenshot to pinterest_error.png ({err_detail})")
                     result(False, error=err_detail)
                     context.close()
                     return
-                
-                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(5000)
+
+                log("Login form submitted successfully. Verifying session via /me/...")
+                try:
+                    page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                except Exception:
+                    pass
 
             # Extra stabilization wait: handle Pinterest 1-second flash redirect while reading session cookies
             log("Waiting for Pin creation tool UI to stabilize...")
