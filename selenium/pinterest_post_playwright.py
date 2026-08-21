@@ -130,9 +130,9 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
                 page.wait_for_timeout(3000)
                 
-                # Submit via trusted click / Enter key
+                # Submit exclusively via modal submit button or Enter key
                 try:
-                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], div[role='button']:has-text('Log in')").first
+                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], form button").first
                     if submit_btn.count() > 0 and submit_btn.is_visible():
                         log("Submitting Pinterest login form via trusted click...")
                         submit_btn.click(timeout=5000)
@@ -185,7 +185,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             pw_in.dispatch_event("input")
                             page.wait_for_timeout(1500)
                             
-                            sub = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button']").first
+                            sub = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], form button").first
                             if sub.count() > 0 and sub.is_visible():
                                 sub.click(timeout=5000)
                             else:
