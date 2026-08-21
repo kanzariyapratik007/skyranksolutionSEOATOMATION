@@ -90,14 +90,20 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             
             if not already_logged:
                 log("Session expired or not logged in — logging in...")
-                log("Navigating to Pinterest home page to open login modal...")
+                log("Navigating to Pinterest home page...")
                 page.goto("https://www.pinterest.com/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(3000)
                 
-                # Navigate directly to login page
-                log("Navigating directly to Pinterest /login/ page...")
-                page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_timeout(3000)
+                # Click Log in button on home page to open modal
+                login_btn = page.locator("[data-test-id='simple-login-button'], button:has-text('Log in'), div[role='button']:has-text('Log in'), a[href*='/login/']").first
+                if login_btn.count() > 0 and login_btn.is_visible():
+                    log("Opening Pinterest login modal from home page...")
+                    login_btn.click(timeout=5000)
+                    page.wait_for_timeout(2000)
+                else:
+                    log("Navigating to Pinterest /login/ page...")
+                    page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
+                    page.wait_for_timeout(3000)
                 
                 # Email input — human typing + React events
                 email_input = page.locator("input[type='email'], input#email, input[name='username']").first
