@@ -94,16 +94,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 page.goto("https://www.pinterest.com/", wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(3000)
                 
-                # Open login modal if button exists on homepage
-                home_login = page.locator("[data-test-id='simple-login-button'], button:has-text('Log in'), a:has-text('Log in')").first
-                if home_login.count() > 0 and home_login.is_visible():
-                    log("Opening Pinterest login modal from home page...")
-                    home_login.click()
-                    page.wait_for_timeout(3000)
-                else:
-                    log("Navigating directly to /login/ page...")
-                    page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
-                    page.wait_for_timeout(3000)
+                # Navigate directly to login page
+                log("Navigating directly to Pinterest /login/ page...")
+                page.goto("https://www.pinterest.com/login/", wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_timeout(3000)
                 
                 # Email input — human typing + React events
                 email_input = page.locator("input[type='email'], input#email, input[name='username']").first
@@ -130,7 +124,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
                 # Submit via trusted click / Enter key
                 try:
-                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button']").first
+                    submit_btn = page.locator("button[type='submit'], [data-test-id='registerFormSubmitButton'], [data-test-id='login-button'], div[role='button']:has-text('Log in')").first
                     if submit_btn.count() > 0 and submit_btn.is_visible():
                         log("Submitting Pinterest login form via trusted click...")
                         submit_btn.click(timeout=5000)
@@ -160,7 +154,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 if ("login" in current_after or "signup" in current_after) and page.locator("input[type='email']").count() > 0:
                     err_detail = f"Pinterest login failed — please check password for {email} or try again."
                     try:
-                        page.screenshot(path=os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_error.png'), timeout=5000)
+                        screenshot_path1 = os.path.join(script_dir, 'pinterest_error.png')
+                        screenshot_path2 = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_error.png')
+                        page.screenshot(path=screenshot_path1, timeout=5000)
+                        page.screenshot(path=screenshot_path2, timeout=5000)
                         # Check for visible error messages on Pinterest screen
                         err_elem = page.locator("[data-test-id='login-error-message'], .formErrorMessage, [role='alert']").first
                         if err_elem.count() > 0 and err_elem.is_visible():
