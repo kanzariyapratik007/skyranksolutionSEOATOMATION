@@ -100,6 +100,12 @@ function isNavAllowed($menuCode, $allowedMenus) {
         </li>
         <?php endif; ?>
 
+        <li class="nav-item">
+          <a class="nav-link <?= $currentPage === 'daily-reports.php' ? 'active fw-bold' : '' ?>" href="daily-reports.php">
+            <i class="fas fa-calendar-check me-1"></i>Daily Reports
+          </a>
+        </li>
+
         <?php if (isNavAllowed('api-keys', $allowedMenus)): ?>
         <li class="nav-item">
           <a class="nav-link <?= $currentPage === 'api-setup.php' ? 'active fw-bold' : '' ?>" href="api-setup.php">

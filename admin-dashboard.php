@@ -863,7 +863,9 @@ $flash = getFlash();
                       ?>
                       <tr>
                         <td>
-                          <strong><?= htmlspecialchars($usr['username']) ?></strong>
+                          <a href="user-profile.php?id=<?= $usr['id'] ?>" class="text-primary text-decoration-none fw-bold" title="View Full Profile & Passwords">
+                            <?= htmlspecialchars($usr['username']) ?> <i class="fas fa-external-link-alt" style="font-size: 10px;"></i>
+                          </a>
                           <?php if ($usr['id'] === (int)$_SESSION['user_id']): ?>
                             <span class="badge bg-success ms-1">You</span>
                           <?php endif; ?>
@@ -890,6 +892,11 @@ $flash = getFlash();
                         </td>
                         <td class="text-end">
                           <div class="d-inline-flex gap-1">
+                            <!-- View Profile & Credentials -->
+                            <a href="user-profile.php?id=<?= $usr['id'] ?>" class="btn btn-sm btn-outline-info" title="View User Profile & Passwords">
+                              <i class="fas fa-user-circle"></i>
+                            </a>
+
                             <!-- Edit Permissions Action -->
                             <button class="btn btn-sm btn-outline-primary" 
                                     onclick="showPermissionsModal(<?= $usr['id'] ?>, '<?= htmlspecialchars(addslashes($usr['username'])) ?>', '<?= htmlspecialchars(addslashes($usr['allowed_menus'] ?? '')) ?>')"

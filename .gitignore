@@ -1,12 +1,15 @@
-﻿# ============================================
+# ============================================
 # SEO System - Git Ignore
 # ============================================
 
-# Chrome Profiles
+# Chrome Profiles & Tmp dirs
 selenium/chrome_profile*/
 selenium/chrome_profile_*/
 selenium/*/chrome_profile*/
 selenium/*/Default/
+selenium/tmp_dir*/
+selenium/tmp_dir_*
+scratch/
 
 # Config with sensitive data
 config.local.php
