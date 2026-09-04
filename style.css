@@ -1,0 +1,459 @@
+/* ============================================================
+   SEO 80/20 System - Premium SaaS Stylesheet
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --primary: #4f46e5;       /* Indigo 600 */
+    --primary-dark: #3730a3;  /* Indigo 800 */
+    --success: #10b981;       /* Emerald 500 */
+    --warning: #f59e0b;       /* Amber 500 */
+    --danger: #ef4444;        /* Rose 500 */
+    --dark: #0f172a;          /* Slate 900 */
+    --text-muted: #64748b;    /* Slate 500 */
+    --border-color: #e2e8f0;  /* Slate 200 */
+    --bg-light: #f8fafc;      /* Slate 50 */
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.08);
+}
+
+body {
+    background: #f8fafc;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    color: var(--dark);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Auth Pages
+   ============================================================ */
+.auth-body {
+    background: radial-gradient(circle at top right, #f3e8ff 0%, #e0e7ff 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-wrapper {
+    width: 100%;
+    max-width: 440px;
+    padding: 20px;
+}
+
+.auth-card {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(16px);
+    border-radius: 24px;
+    padding: 40px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+}
+
+.auth-logo {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.auth-logo i {
+    font-size: 44px;
+    color: var(--primary);
+    margin-bottom: 12px;
+    display: inline-block;
+    background: #e0e7ff;
+    padding: 16px;
+    border-radius: 16px;
+}
+
+.auth-logo h2 {
+    font-weight: 800;
+    color: var(--dark);
+    margin-bottom: 6px;
+    letter-spacing: -0.5px;
+}
+
+.auth-logo p {
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ============================================================
+   Navbar
+   ============================================================ */
+.navbar {
+    background: #fff !important;
+    border-bottom: 1px solid var(--border-color);
+    padding: 14px 32px;
+}
+
+.navbar-brand {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.8px;
+    color: var(--primary) !important;
+}
+
+.navbar-brand i {
+    background: #eff6ff;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.navbar-nav .nav-link {
+    font-weight: 600;
+    font-size: 14px;
+    color: #475569 !important;
+    padding: 8px 16px !important;
+    border-radius: 8px;
+    transition: all 0.15s ease;
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--primary) !important;
+    background: #f1f5f9;
+}
+
+.navbar-nav .nav-link.active {
+    color: var(--primary) !important;
+    background: #eff6ff;
+}
+
+/* ============================================================
+   Stat Cards (Premium Pastel Tints)
+   ============================================================ */
+.stat-card {
+    border-radius: 16px;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border: 1px solid transparent;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--card-shadow-hover);
+}
+
+.stat-icon {
+    font-size: 24px;
+    background: #fff;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.stat-info h2 {
+    font-size: 28px;
+    font-weight: 800;
+    margin: 0 0 2px 0;
+    letter-spacing: -0.5px;
+}
+
+.stat-info p {
+    margin: 0;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Pastel Tint Colors */
+.stat-card.bg-primary {
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    border-color: #bfdbfe;
+}
+.stat-card.bg-primary .stat-icon { color: #2563eb; }
+
+.stat-card.bg-success {
+    background: #ecfdf5 !important;
+    color: #047857 !important;
+    border-color: #a7f3d0;
+}
+.stat-card.bg-success .stat-icon { color: #059669; }
+
+.stat-card.bg-warning {
+    background: #fffbef !important;
+    color: #b45309 !important;
+    border-color: #fde68a;
+}
+.stat-card.bg-warning .stat-icon { color: #d97706; }
+
+.stat-card.bg-info {
+    background: #f5f3ff !important;
+    color: #6d28d9 !important;
+    border-color: #ddd6fe;
+}
+.stat-card.bg-info .stat-icon { color: #7c3aed; }
+
+/* ============================================================
+   SEO Score Circle
+   ============================================================ */
+.seo-score-circle {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 800;
+    color: #fff;
+    margin: 0 auto;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.seo-score-circle.good {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.seo-score-circle.average {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.seo-score-circle.poor {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+/* ============================================================
+   Cards
+   ============================================================ */
+.card {
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+    background: #fff;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: var(--card-shadow-hover);
+}
+
+.card-header {
+    background: #fff !important;
+    border-bottom: 1px solid var(--border-color);
+    padding: 20px 24px !important;
+    font-weight: 700;
+    color: var(--dark);
+    font-size: 16px;
+}
+
+.card-body {
+    padding: 24px !important;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 10px 20px;
+    font-size: 14px;
+    transition: all 0.15s ease-in-out;
+}
+
+.btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+}
+
+.btn-success {
+    background: var(--success);
+    border-color: var(--success);
+}
+
+.btn-success:hover {
+    background: #059669;
+    border-color: #059669;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.btn-group-sm > .btn, .btn-sm {
+    padding: 6px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+}
+
+.btn-xs {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+}
+
+/* ============================================================
+   Tables (Clean & Spaced)
+   ============================================================ */
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.table th {
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 14px;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+/* ============================================================
+   Forms & Controls
+   ============================================================ */
+.form-label {
+    font-weight: 600;
+    font-size: 13px;
+    color: #334155;
+    margin-bottom: 6px;
+}
+
+.form-control, .form-select {
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.15s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.input-group-text {
+    background-color: #f1f5f9;
+    border: 1px solid var(--border-color);
+    border-radius: 10px 0 0 10px;
+    color: var(--text-muted);
+    padding: 10px 14px;
+}
+
+.input-group > .form-control {
+    border-radius: 0 10px 10px 0;
+}
+
+/* ============================================================
+   Responsive Layout Styles
+   ============================================================ */
+@media (max-width: 991px) {
+    .navbar {
+        padding: 8px 16px;
+    }
+    .navbar-collapse {
+        margin-top: 10px;
+    }
+    .navbar-nav .nav-link {
+        padding: 8px 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 16px;
+        gap: 12px;
+        justify-content: center;
+        flex-direction: row;
+        text-align: left;
+    }
+
+    .stat-icon {
+        font-size: 24px;
+    }
+
+    .stat-info h2 {
+        font-size: 22px;
+    }
+
+    .auth-card {
+        padding: 30px 20px;
+    }
+
+    .nav-tabs .nav-link {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+
+    .table td, .table th {
+        word-break: break-word;
+        white-space: normal;
+    }
+}
+
+@media (max-width: 576px) {
+    body {
+        font-size: 14px;
+    }
+
+    .container, .container-fluid {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    h3 {
+        font-size: 20px !important;
+    }
+
+    .card-body {
+        padding: 12px !important;
+    }
+
+    td .btn-group, td .btn-group-sm {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    td .btn-group > .btn, td .btn-group-sm > .btn {
+        border-radius: 6px !important;
+        width: 100%;
+        margin-left: 0 !important;
+    }
+
+    .card-header.d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 10px;
+        padding: 12px !important;
+    }
+}
+
+@media (max-width: 991px) {
+    .table-responsive .table {
+        min-width: 850px !important;
+    }
+}

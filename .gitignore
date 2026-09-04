@@ -1,0 +1,136 @@
+# ============================================
+# SEO System - Git Ignore
+# ============================================
+
+# Chrome Profiles & Tmp dirs
+selenium/chrome_profile*/
+selenium/chrome_profile_*/
+selenium/*/chrome_profile*/
+selenium/*/Default/
+selenium/tmp_dir*/
+selenium/tmp_dir_*
+scratch/
+
+# Config with sensitive data
+config.local.php
+config.local.php.*
+*.local.php
+
+# Uploads
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+uploads/*.pdf
+uploads/*.gif
+uploads/*.webp
+!uploads/.gitkeep
+
+# Logs
+logs/*.log
+logs/*.csv
+!logs/.gitkeep
+
+# Vendor
+vendor/
+node_modules/
+composer.lock
+package-lock.json
+
+# IDE Files
+.agents/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Session Files
+sessions/
+*.session
+
+# Backup Files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Database
+*.sqlite
+*.db
+
+# Temporary Files
+*.tmp
+*.lock
+temp/
+tmp/
+
+# Chrome User Data
+**/Default/
+**/Cache/
+**/Code Cache/
+**/Service Worker/
+**/IndexedDB/
+**/Local Storage/
+**/Session Storage/
+**/WebStorage/
+**/Extension Rules/
+**/Extension Scripts/
+**/Extension State/
+**/GCM Store/
+**/Subresource Filter/
+**/optimization_guide_model_store/
+**/shared_proto_db/
+**/Sync Data/
+**/Site Characteristics Database/
+**/Crashpad/
+
+# Specific large files
+*.crx
+*.pak
+*.bin
+*.exe
+*.msi
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Composer
+composer.phar
+
+# Python virtual environment
+venv/
+ENV/
+env/
+.env/
+
+# Testing
+tests/
+coverage/
+.phpunit.result.cache
+
+# Windows
+*.lnk
+*.url
+uploads.tar.gz
+uploads.tar.gz
+*.sql
+*.txt
