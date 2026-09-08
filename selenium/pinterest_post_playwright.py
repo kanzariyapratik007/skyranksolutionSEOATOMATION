@@ -215,69 +215,30 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            # Determine regional subdomain (e.g. in.pinterest.com)
-            current_domain = "in.pinterest.com" if "in.pinterest.com" in page.url else "www.pinterest.com"
-            log(f"Opening Pin creation canvas (Domain: {current_domain})...")
-            
-            # Attempt 1: Direct navigation to regional pin-creation-tool
+            # Navigate directly to pin creation tool
+            log("Opening Pin creation tool...")
             try:
-                page.goto(f"https://{current_domain}/pin-creation-tool/", wait_until="domcontentloaded", timeout=45000)
+                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_timeout(4000)
             except Exception as e_pb:
                 log(f"Pin builder direct navigation: {e_pb}")
 
-            # Wait for React to attach file input
-            try:
-                page.wait_for_selector("input[type='file'], [data-test-id*='upload']", state="attached", timeout=8000)
-            except Exception:
-                pass
-
-            # Attempt 2: If input not found, click Create [+] on sidebar
-            if page.locator("input[type='file']").count() == 0:
-                log("File input not ready — trying left sidebar Create (+) button...")
-                create_btn = page.locator("a[aria-label*='Create' i], button[aria-label*='Create' i], [data-test-id='create-button']").first
-                if create_btn.count() > 0 and create_btn.is_visible():
+            # If redirected to home page, click Create in navigation
+            curr_url = page.url.lower()
+            if "pin-creation" not in curr_url and "pin-builder" not in curr_url:
+                log("Redirected to home page — clicking Create button in navigation...")
+                create_nav = page.locator("[data-test-id='header-create-button'], a[href*='pin-creation-tool'], a[aria-label*='Create' i], button[aria-label*='Create' i]").first
+                if create_nav.count() > 0 and create_nav.is_visible():
                     try:
-                        create_btn.click(timeout=5000)
-                        page.wait_for_timeout(2000)
+                        create_nav.click(timeout=5000)
+                        page.wait_for_timeout(3000)
                         pin_opt = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin')").first
                         if pin_opt.count() > 0 and pin_opt.is_visible():
                             pin_opt.click(timeout=3000)
                             page.wait_for_timeout(3000)
                     except Exception as e_c:
-                        log(f"Sidebar click: {e_c}")
+                        log(f"Create navigation click: {e_c}")
 
-            # Attempt 3: If input still not found, try pin-builder URL
-            if page.locator("input[type='file']").count() == 0:
-                log(f"Navigating to https://{current_domain}/pin-builder/...")
-                try:
-                    page.goto(f"https://{current_domain}/pin-builder/", wait_until="domcontentloaded", timeout=45000)
-                    page.wait_for_timeout(5000)
-                except Exception as e_pb2:
-                    log(f"Pin builder fallback 2: {e_pb2}")
-
-            # Dismiss any dialogs / overlays covering the Pin builder
-            for _ in range(3):
-                try:
-                    close_btn = page.locator("button:has-text('Not now'), button:has-text('Skip'), button:has-text('Cancel'), [aria-label='Close'], button:has-text('Got it')").first
-                    if close_btn.count() > 0 and close_btn.is_visible():
-                        log("Dismissing overlay dialog on Pin builder...")
-                        close_btn.click(timeout=3000)
-                        page.wait_for_timeout(2000)
-                    else:
-                        break
-                except Exception:
-                    break
-
-            file_check = page.locator("input[type='file']").first
-            if file_check.count() == 0:
-                log(f"File input missing. Current URL: {page.url} | Title: {page.title()}")
-                try:
-                    debug_img = os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_builder_debug.png')
-                    page.screenshot(path=debug_img, timeout=5000)
-                    log(f"Saved debug screenshot to pinterest_builder_debug.png")
-                except Exception:
-                    pass
-            
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
                 uploads_dir = os.path.join(os.path.dirname(script_dir), 'uploads')
@@ -294,7 +255,16 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log(f"Uploading image: {os.path.basename(image_path)}...")
                 try:
                     file_input = page.locator("input[type='file'], input[data-test-id*='upload'], input[data-test-id*='storyboard'], [data-test-id='media-upload-input']").first
-                    file_input.wait_for(state="attached", timeout=12000)
+                    try:
+                        file_input.wait_for(state="attached", timeout=15000)
+                    except Exception:
+                        log("Clicking upload dropzone to mount file input...")
+                        dropzone = page.locator("[data-test-id='media-upload-input'], [data-test-id='storyboard-upload-input'], div[aria-label*='upload' i], div:has-text('Choose a file')").first
+                        if dropzone.count() > 0 and dropzone.is_visible():
+                            dropzone.click(timeout=3000)
+                            page.wait_for_timeout(2000)
+                        file_input.wait_for(state="attached", timeout=10000)
+
                     file_input.set_input_files(os.path.abspath(image_path))
                     page.wait_for_timeout(6000)
                     log("Image uploaded!")
