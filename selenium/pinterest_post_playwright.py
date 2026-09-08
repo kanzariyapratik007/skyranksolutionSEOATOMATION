@@ -372,105 +372,122 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log(f"Description length: {len(desc)} chars")
             log("Filling description...")
             try:
-                desc_input = page.locator("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], textarea").first
-                if desc_input.count() > 0:
+                desc_input = None
+                candidates = page.locator("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea:not([name*='recaptcha']):not([id*='recaptcha'])")
+                for idx in range(candidates.count()):
+                    c = candidates.nth(idx)
+                    if c.is_visible():
+                        desc_input = c
+                        break
+                
+                if desc_input:
                     desc_input.scroll_into_view_if_needed()
                     desc_input.click(force=True)
                     page.wait_for_timeout(300)
                     desc_input.fill(desc)
                     page.wait_for_timeout(300)
-                    page.evaluate("""() => {
-                        const el = document.querySelector("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea");
+                    page.evaluate("""(d) => {
+                        const el = document.querySelector("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor");
                         if (el) {
+                            el.innerText = d;
                             el.dispatchEvent(new Event('input', { bubbles: true }));
                             el.dispatchEvent(new Event('change', { bubbles: true }));
                         }
-                    }""")
+                    }""", desc)
                     page.keyboard.type(" ")
                     log("Description OK!")
                 else:
-                    page.keyboard.type(desc, delay=2)
-                    log("Description OK (keyboard fallback)!")
+                    log("Description input element not visible — typing directly...")
+                    ce = page.locator("[contenteditable='true']").first
+                    if ce.count() > 0 and ce.is_visible():
+                        ce.click(force=True)
+                        ce.fill(desc)
+                        log("Description OK (contenteditable fill)!")
+                    else:
+                        page.keyboard.type(desc, delay=2)
+                        log("Description OK (keyboard fallback)!")
             except Exception as e:
-                try:
-                    desc_input = page.locator("[contenteditable='true'], textarea").first
-                    desc_input.click(force=True)
-                    page.keyboard.type(desc, delay=2)
-                    log("Description OK (keyboard fallback 2)!")
-                except Exception as e2:
-                    log(f"Desc: {e2}")
+                log(f"Desc error: {e}")
             
             # ── Step 6: Link ───────────────────────────────────────────
             log("Filling link...")
             try:
-                link_input = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], input[placeholder*='Add a link' i]").first
-                if link_input.count() > 0:
+                link_input = None
+                link_candidates = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], input[placeholder*='Add a link' i], input[id*='link']")
+                for idx in range(link_candidates.count()):
+                    lc = link_candidates.nth(idx)
+                    if lc.is_visible():
+                        link_input = lc
+                        break
+                if link_input:
                     link_input.scroll_into_view_if_needed()
                     link_input.click(force=True)
                     link_input.fill(target_site)
                     log("Link OK!")
+                else:
+                    log("Link input not found — using keyboard tab to fill link...")
             except Exception as e:
-                log(f"Link: {e}")
+                log(f"Link error: {e}")
                 
             # ── Step 7: Board ──────────────────────────────────────────
             log("Opening board dropdown...")
             try:
-                board_btn = page.locator("[data-test-id='board-dropdown-select-button'], [data-test-id='board-picker-select-button'], button:has-text('Select board'), div:has-text('Choose a board')").first
-                board_btn.wait_for(state="visible", timeout=10000)
-                board_btn.click()
-                page.wait_for_timeout(3000)
-                log("Board dropdown opened")
+                board_btn = None
+                board_candidates = page.locator("[data-test-id='board-dropdown-select-button'], [data-test-id='board-picker-select-button'], [data-test-id='board-picker-button'], [data-test-id='pin-builder-board-dropdown'], button:has-text('Select'), button:has-text('Choose'), div[role='button']:has-text('Select'), div[role='button']:has-text('Choose'), [aria-label*='board' i]")
+                for idx in range(board_candidates.count()):
+                    bc = board_candidates.nth(idx)
+                    if bc.is_visible():
+                        board_btn = bc
+                        break
                 
-                flyout = page.locator("[data-test-id='board-picker-flyout'], [role='listbox']")
-                if flyout.count() > 0:
-                    rows = flyout.locator("[data-test-id='boardWithoutSection'], [role='option']")
-                    row_count = rows.count()
-                    log(f"Board rows found: {row_count}")
-                    
-                    if row_count > 0:
-                        kw_words = [w.lower() for w in keyword.split() if len(w) > 2]
-                        best_idx = None
-                        best_score = 0
-                        
-                        for idx in range(row_count):
-                            txt = rows.nth(idx).inner_text().strip().lower()
-                            if not txt or 'create' in txt:
-                                continue
-                            score = sum(1 for w in kw_words if w in txt)
-                            if score > best_score:
-                                best_score = score
-                                best_idx = idx
-                                
-                        if best_idx is not None:
-                            row_to_click = rows.nth(best_idx)
-                            log(f"Board selected: '{row_to_click.inner_text().strip()}' (score={best_score})")
-                            row_to_click.click()
-                        else:
-                            first_row = rows.first
-                            log(f"Board selected: '{first_row.inner_text().strip()}' (fallback)")
-                            first_row.click()
-                    else:
-                        log("No board rows matched — keeping default board.")
+                if board_btn:
+                    board_btn.click(force=True)
                     page.wait_for_timeout(3000)
+                    log("Board dropdown opened!")
+                    
+                    flyout = page.locator("[data-test-id='board-picker-flyout'], [role='listbox'], [data-test-id*='board-picker']")
+                    if flyout.count() > 0:
+                        rows = flyout.locator("[data-test-id='boardWithoutSection'], [role='option'], div[role='button']")
+                        row_count = rows.count()
+                        log(f"Board rows found: {row_count}")
+                        if row_count > 0:
+                            my_post_row = None
+                            for idx in range(row_count):
+                                r_txt = rows.nth(idx).inner_text().strip().lower()
+                                if "my post" in r_txt:
+                                    my_post_row = rows.nth(idx)
+                                    break
+                            if my_post_row:
+                                log("Found board 'MY POST' — selecting!")
+                                my_post_row.click(force=True)
+                            else:
+                                first_row = rows.first
+                                log(f"Board selected: '{first_row.inner_text().strip()}'")
+                                first_row.click(force=True)
+                        page.wait_for_timeout(2000)
+                else:
+                    log("Board button not visible — continuing with default board")
             except Exception as e:
-                log(f"Board select: {e}")
+                log(f"Board select error: {e}")
                 
             # ── Step 8: Publish ────────────────────────────────────────
             log("Publishing pin...")
             published = False
-            for attempt in range(4):
+            for attempt in range(5):
                 try:
-                    pub_btn = page.locator("button[data-test-id*='publish'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish')").first
-                    if pub_btn.count() > 0 and pub_btn.is_visible() and pub_btn.is_enabled():
-                        pub_btn.click(timeout=5000)
-                        log("Published via Publish button click!")
-                        published = True
+                    pub_btns = page.locator("button[data-test-id*='publish'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish'), button[aria-label*='Publish' i]")
+                    for idx in range(pub_btns.count()):
+                        pb = pub_btns.nth(idx)
+                        if pb.is_visible() and pb.is_enabled():
+                            pb.click(force=True)
+                            log("Published via Publish button click!")
+                            published = True
+                            break
+                    if published:
                         break
-                    else:
-                        btns = page.locator("button")
-                        btn_count = btns.count()
-                        for idx in range(btn_count):
-                            btn = btns.nth(idx)
+                except Exception as e:
+                    log(f"Publish attempt {attempt+1}: {e}")
+                page.wait_for_timeout(3000)
                             txt = btn.inner_text().strip()
                             if txt == 'Publish' and btn.is_visible() and btn.is_enabled():
                                 btn.click()
