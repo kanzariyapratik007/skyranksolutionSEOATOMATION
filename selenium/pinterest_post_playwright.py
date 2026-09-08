@@ -87,7 +87,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             
             # ── Step 1 & 2: Direct Pin Creation Entry (Reusing Saved Session Cookies) ──
             log("Opening Pin creation tool directly using saved session...")
-            page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+            page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(4000)
             
             already_logged = False
@@ -151,7 +151,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log("Verifying session via pin creation tool...")
                 logged_in = False
                 try:
-                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=30000)
+                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=30000)
                     page.wait_for_timeout(4000)
                     curr_u = page.url.lower()
                     if "login" not in curr_u and "signup" not in curr_u:
@@ -185,7 +185,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log("Temporary flash redirect detected — waiting for auto-redirect to Pin builder...")
                 page.wait_for_timeout(5000)
                 if "login" in page.url.lower() or "signup" in page.url.lower():
-                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=60000)
+                    page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=60000)
                     page.wait_for_timeout(5000)
 
             log("Login OK! Pin builder ready.")
@@ -218,7 +218,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             # Navigate directly to pin creation tool
             log("Opening Pin creation tool...")
             try:
-                page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=45000)
+                page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=45000)
                 page.wait_for_timeout(4000)
             except Exception as e_pb:
                 log(f"Pin builder direct navigation: {e_pb}")
@@ -227,7 +227,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             curr_url = page.url.lower()
             if "pin-creation" not in curr_url and "pin-builder" not in curr_url:
                 log("Redirected to home page — clicking Create button in navigation...")
-                create_nav = page.locator("[data-test-id='header-create-button'], a[href*='pin-creation-tool'], a[aria-label*='Create' i], button[aria-label*='Create' i]").first
+                create_nav = page.locator("[data-test-id='header-create-button'], a[href*='pin-builder'], a[href*='pin-creation-tool'], a[aria-label*='Create' i], button[aria-label*='Create' i]").first
                 if create_nav.count() > 0 and create_nav.is_visible():
                     try:
                         create_nav.click(timeout=5000)
@@ -253,55 +253,104 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             image_uploaded = False
             if image_path and os.path.exists(image_path):
                 log(f"Uploading image: {os.path.basename(image_path)}...")
+                abs_img = os.path.abspath(image_path)
+                
+                # Method 1: Un-hide native input[type='file'] elements in Pinterest's DOM
                 try:
-                    # Inject input[type='file'] if DOM does not have one attached
-                    page.evaluate("""() => {
-                        if (!document.querySelector("input[type='file']")) {
-                            const inp = document.createElement("input");
-                            inp.type = "file";
-                            inp.id = "injected_pin_file_input";
-                            inp.style.position = "fixed";
-                            inp.style.top = "0px";
-                            inp.style.left = "0px";
-                            inp.style.zIndex = "99999";
-                            document.body.appendChild(inp);
-                        }
-                    }""")
-                    
-                    file_input = page.locator("input[type='file']").first
-                    file_input.wait_for(state="attached", timeout=5000)
-                    file_input.set_input_files(os.path.abspath(image_path))
-                    page.wait_for_timeout(3000)
-                    
-                    # Trigger change and input events
                     page.evaluate("""() => {
                         const inputs = document.querySelectorAll("input[type='file']");
                         inputs.forEach(inp => {
-                            inp.dispatchEvent(new Event('change', { bubbles: true }));
-                            inp.dispatchEvent(new Event('input', { bubbles: true }));
+                            inp.style.display = "block";
+                            inp.style.opacity = "1";
+                            inp.style.visibility = "visible";
+                            inp.style.position = "fixed";
+                            inp.style.top = "10px";
+                            inp.style.left = "10px";
+                            inp.style.width = "200px";
+                            inp.style.height = "50px";
+                            inp.style.zIndex = "999999";
+                            inp.removeAttribute("hidden");
                         });
                     }""")
-                    page.wait_for_timeout(4000)
-                    log("Image uploaded!")
-                    image_uploaded = True
-                except Exception as e:
-                    log(f"Image upload: {e}")
-            
-            if not image_uploaded:
-                log("Pin builder canvas file input not ready — halting execution.")
-                result(False, error="Pin builder UI inputs not found — please check Pinterest account.")
-                context.close()
-                return
-            
+                    page.wait_for_timeout(1000)
+                    
+                    native_inputs = page.locator("input[type='file']:not(#injected_pin_file_input)")
+                    if native_inputs.count() > 0:
+                        log(f"Found {native_inputs.count()} native file input(s) — attaching image...")
+                        native_inputs.first.set_input_files(abs_img)
+                        page.wait_for_timeout(2000)
+                        page.evaluate("""() => {
+                            const inputs = document.querySelectorAll("input[type='file']");
+                            inputs.forEach(inp => {
+                                inp.dispatchEvent(new Event('change', { bubbles: true }));
+                                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                            });
+                        }""")
+                        page.wait_for_timeout(3000)
+                        image_uploaded = True
+                except Exception as e_nat:
+                    log(f"Native upload attempt: {e_nat}")
+
+                # Method 2: Trigger FileChooser via clicking dropzone / media area
+                if not image_uploaded:
+                    try:
+                        upload_dz = page.locator("[data-test-id*='upload'], [data-test-id*='media'], [data-test-id*='storyboard'], div[role='button']:has-text('Choose'), div:has-text('Drag and drop'), div:has-text('Choose a file'), svg[aria-label*='upload' i]").first
+                        if upload_dz.count() > 0:
+                            log("Clicking upload dropzone via FileChooser...")
+                            with page.expect_file_chooser(timeout=5000) as fc_info:
+                                upload_dz.click(force=True)
+                            fc_info.value.set_files(abs_img)
+                            page.wait_for_timeout(3000)
+                            image_uploaded = True
+                    except Exception as e_fc:
+                        log(f"FileChooser upload attempt: {e_fc}")
+
+                # Method 3: Dynamic fallback injection
+                if not image_uploaded:
+                    try:
+                        log("Injecting dynamic file input as fallback...")
+                        page.evaluate("""() => {
+                            if (!document.querySelector("input[type='file']")) {
+                                const inp = document.createElement("input");
+                                inp.type = "file";
+                                inp.id = "injected_pin_file_input";
+                                inp.style.position = "fixed";
+                                inp.style.top = "0px";
+                                inp.style.left = "0px";
+                                inp.style.zIndex = "99999";
+                                document.body.appendChild(inp);
+                            }
+                        }""")
+                        file_input = page.locator("input[type='file']").first
+                        file_input.set_input_files(abs_img)
+                        page.wait_for_timeout(2000)
+                        page.evaluate("""() => {
+                            const inputs = document.querySelectorAll("input[type='file']");
+                            inputs.forEach(inp => {
+                                inp.dispatchEvent(new Event('change', { bubbles: true }));
+                                inp.dispatchEvent(new Event('input', { bubbles: true }));
+                            });
+                        }""")
+                        page.wait_for_timeout(3000)
+                        image_uploaded = True
+                    except Exception as e_inj:
+                        log(f"Injection upload attempt: {e_inj}")
+
+                log("Image uploaded! Waiting for canvas fields...")
+                page.wait_for_timeout(3000)
+
             # ── Step 4: Title ──────────────────────────────────────────
             title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
             log("Filling title...")
             try:
-                title_input = page.locator("#storyboard-selector-title, input[id*='storyboard-selector-title'], textarea[id*='storyboard-selector-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], [data-test-id='pin-builder-title'], [data-test-id='pin-draft-title']").first
-                title_input.wait_for(state="visible", timeout=10000)
-                title_input.click()
-                title_input.fill(title[:100])
-                log("Title OK!")
+                title_input = page.locator("#storyboard-selector-title, input[id*='storyboard-selector-title'], textarea[id*='storyboard-selector-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], [data-test-id='pin-builder-title'], [data-test-id='pin-draft-title'], input[placeholder*='Add your title' i], input[type='text']").first
+                if title_input.count() > 0:
+                    title_input.scroll_into_view_if_needed()
+                    title_input.click(force=True)
+                    title_input.fill(title[:100])
+                    log("Title OK!")
+                else:
+                    log("Title input not found by locator — trying keyboard input fallback...")
             except Exception as e:
                 log(f"Title: {e}")
                 
@@ -323,39 +372,43 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log(f"Description length: {len(desc)} chars")
             log("Filling description...")
             try:
-                desc_input = page.locator("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor").first
-                desc_input.wait_for(state="visible", timeout=10000)
-                desc_input.click()
-                page.wait_for_timeout(400)
-                desc_input.fill(desc)
-                page.wait_for_timeout(300)
-                # Dispatch input & change events so Pinterest React state saves the description
-                page.evaluate("""() => {
-                    const el = document.querySelector("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor");
-                    if (el) {
-                        el.dispatchEvent(new Event('input', { bubbles: true }));
-                        el.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                }""")
-                page.keyboard.type(" ")
-                log("Description OK!")
-            except Exception as e:
-                try:
-                    desc_input = page.locator("[contenteditable='true']").first
-                    desc_input.click()
+                desc_input = page.locator("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], textarea").first
+                if desc_input.count() > 0:
+                    desc_input.scroll_into_view_if_needed()
+                    desc_input.click(force=True)
+                    page.wait_for_timeout(300)
+                    desc_input.fill(desc)
+                    page.wait_for_timeout(300)
+                    page.evaluate("""() => {
+                        const el = document.querySelector("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea");
+                        if (el) {
+                            el.dispatchEvent(new Event('input', { bubbles: true }));
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }""")
+                    page.keyboard.type(" ")
+                    log("Description OK!")
+                else:
                     page.keyboard.type(desc, delay=2)
                     log("Description OK (keyboard fallback)!")
+            except Exception as e:
+                try:
+                    desc_input = page.locator("[contenteditable='true'], textarea").first
+                    desc_input.click(force=True)
+                    page.keyboard.type(desc, delay=2)
+                    log("Description OK (keyboard fallback 2)!")
                 except Exception as e2:
                     log(f"Desc: {e2}")
             
             # ── Step 6: Link ───────────────────────────────────────────
             log("Filling link...")
             try:
-                link_input = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link']").first
-                link_input.wait_for(state="visible", timeout=10000)
-                link_input.click()
-                link_input.fill(target_site)
-                log("Link OK!")
+                link_input = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], input[placeholder*='Add a link' i]").first
+                if link_input.count() > 0:
+                    link_input.scroll_into_view_if_needed()
+                    link_input.click(force=True)
+                    link_input.fill(target_site)
+                    log("Link OK!")
             except Exception as e:
                 log(f"Link: {e}")
                 
