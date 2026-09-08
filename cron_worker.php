@@ -40,8 +40,17 @@ if ($running > 0) {
 // Helper to identify if a platform requires Selenium browser automation
 function isSeleniumPlatform($platform, $creds = []) {
     $platform = strtolower($platform);
+    if ($platform === 'pinterest') {
+        $apiKey = $creds['api_key'] ?? '';
+        $pass   = $creds['password'] ?? '';
+        if (strpos($apiKey, 'pina_') === 0 || strpos($pass, 'pina_') === 0 || !empty($apiKey)) {
+            return false; // Runs via Official Pinterest API (fast & 100% reliable)
+        }
+        return true; // Fallback to Selenium
+    }
+    
     // These platforms strictly use Selenium browser automation
-    $seleniumOnly = ['pinterest', 'wakelet', 'symbaloo', 'pearltrees', 'diigo', 'plurk', 'livejournal'];
+    $seleniumOnly = ['wakelet', 'symbaloo', 'pearltrees', 'diigo', 'plurk', 'livejournal'];
     if (in_array($platform, $seleniumOnly)) {
         return true;
     }

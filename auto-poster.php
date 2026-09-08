@@ -3661,6 +3661,88 @@ function runPlatformAutoPost(string $platform, array $creds, array $project, int
     }
 
     switch ($platform) {
+        case 'pinterest':
+            $token = trim($creds['api_key'] ?: ($creds['password'] ?: ''));
+            if (strpos($token, 'pina_') === 0 || !empty($creds['api_key'])) {
+                // Official Pinterest v5 API Integration
+                $ch = curl_init('https://api.pinterest.com/v5/boards');
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $token,
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $res = curl_exec($ch);
+                curl_close($ch);
+                $boardsData = json_decode($res, true);
+                
+                $boardId = $boardsData['items'][0]['id'] ?? null;
+                if (!$boardId) {
+                    $ch = curl_init('https://api.pinterest.com/v5/boards');
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Authorization: Bearer ' . $token,
+                        'Content-Type: application/json'
+                    ]);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'name' => 'SEO Backlinks & Resources',
+                        'description' => 'Curated resources and recommendations'
+                    ]));
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    $res = curl_exec($ch);
+                    curl_close($ch);
+                    $createdBoard = json_decode($res, true);
+                    $boardId = $createdBoard['id'] ?? null;
+                }
+
+                if (!$boardId) {
+                    $errMsg = $boardsData['message'] ?? (is_string($res) ? $res : 'Failed to fetch or create Pinterest board');
+                    return ['error' => 'Pinterest API Board Error: ' . $errMsg];
+                }
+
+                $ai = generateAIContent($keyword, $site, 'pinterest', 'image_caption', '', OPENAI_API_KEY, $postCount, $usedTitles, $project['business_name'] ?? '', $project['business_description'] ?? '');
+                $title = $ai['title'] ?? ("Best " . ucwords($keyword) . " Guide");
+                $desc  = $ai['content'] ?? ("Learn more about " . $keyword . " at " . $site);
+
+                $imgUrl = $project['post_image'] ?? 'https://skyranksolution.com/assets/img/logo.png';
+                if (strpos($imgUrl, 'http') !== 0) {
+                    $imgUrl = 'http://54.210.197.187.nip.io/' . ltrim($imgUrl, '/');
+                }
+
+                $pinData = [
+                    'link' => $site,
+                    'title' => substr($title, 0, 100),
+                    'description' => substr($desc, 0, 500),
+                    'board_id' => $boardId,
+                    'media_source' => [
+                        'source_type' => 'image_url',
+                        'url' => $imgUrl
+                    ]
+                ];
+
+                $ch = curl_init('https://api.pinterest.com/v5/pins');
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Authorization: Bearer ' . $token,
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($pinData));
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                $pinRes = curl_exec($ch);
+                curl_close($ch);
+                $pinJson = json_decode($pinRes, true);
+
+                if (!empty($pinJson['id'])) {
+                    return [
+                        'success' => true,
+                        'url' => 'https://www.pinterest.com/pin/' . $pinJson['id'] . '/',
+                        'post_title' => $title
+                    ];
+                } else {
+                    return ['error' => 'Pinterest API Error: ' . ($pinJson['message'] ?? json_encode($pinJson))];
+                }
+            }
+            break;
+
         case 'bluesky':            $rawPass = $creds['password'] ?? '';
             $password = base64_decode($rawPass, true);
             if ($password === false || empty(trim($password))) {
