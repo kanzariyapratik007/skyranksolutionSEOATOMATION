@@ -254,19 +254,34 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             if image_path and os.path.exists(image_path):
                 log(f"Uploading image: {os.path.basename(image_path)}...")
                 try:
-                    file_input = page.locator("input[type='file'], input[data-test-id*='upload'], input[data-test-id*='storyboard'], [data-test-id='media-upload-input']").first
-                    try:
-                        file_input.wait_for(state="attached", timeout=15000)
-                    except Exception:
-                        log("Clicking upload dropzone to mount file input...")
-                        dropzone = page.locator("[data-test-id='media-upload-input'], [data-test-id='storyboard-upload-input'], div[aria-label*='upload' i], div:has-text('Choose a file')").first
-                        if dropzone.count() > 0 and dropzone.is_visible():
-                            dropzone.click(timeout=3000)
-                            page.wait_for_timeout(2000)
-                        file_input.wait_for(state="attached", timeout=10000)
-
+                    # Inject input[type='file'] if DOM does not have one attached
+                    page.evaluate("""() => {
+                        if (!document.querySelector("input[type='file']")) {
+                            const inp = document.createElement("input");
+                            inp.type = "file";
+                            inp.id = "injected_pin_file_input";
+                            inp.style.position = "fixed";
+                            inp.style.top = "0px";
+                            inp.style.left = "0px";
+                            inp.style.zIndex = "99999";
+                            document.body.appendChild(inp);
+                        }
+                    }""")
+                    
+                    file_input = page.locator("input[type='file']").first
+                    file_input.wait_for(state="attached", timeout=5000)
                     file_input.set_input_files(os.path.abspath(image_path))
-                    page.wait_for_timeout(6000)
+                    page.wait_for_timeout(3000)
+                    
+                    # Trigger change and input events
+                    page.evaluate("""() => {
+                        const inputs = document.querySelectorAll("input[type='file']");
+                        inputs.forEach(inp => {
+                            inp.dispatchEvent(new Event('change', { bubbles: true }));
+                            inp.dispatchEvent(new Event('input', { bubbles: true }));
+                        });
+                    }""")
+                    page.wait_for_timeout(4000)
                     log("Image uploaded!")
                     image_uploaded = True
                 except Exception as e:

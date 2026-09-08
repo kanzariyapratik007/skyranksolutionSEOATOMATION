@@ -3737,11 +3737,10 @@ function runPlatformAutoPost(string $platform, array $creds, array $project, int
                         'url' => 'https://www.pinterest.com/pin/' . $pinJson['id'] . '/',
                         'post_title' => $title
                     ];
-                } else {
-                    return ['error' => 'Pinterest API Error: ' . ($pinJson['message'] ?? json_encode($pinJson))];
                 }
             }
-            break;
+            // Fallback to Playwright if API not configured or unsupported
+            return runSeleniumBridge('pinterest', $creds, $project, $projectId);
 
         case 'bluesky':            $rawPass = $creds['password'] ?? '';
             $password = base64_decode($rawPass, true);
