@@ -74,7 +74,7 @@ define('SMTP_PASS', (string) seoCfg('SMTP_PASS', ''));
 define('SMTP_PORT', (int) seoCfg('SMTP_PORT', 587));
 
 // Session
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE && php_sapi_name() !== 'cli' && !headers_sent()) {
     session_start();
 }
 

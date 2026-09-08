@@ -22,8 +22,8 @@ $stmt->execute();
 $running = (int)$stmt->fetchColumn();
 
 if ($running > 0) {
-    // Timeout check: if a task is stuck in 'processing' status for more than 15 minutes, mark as failed
-    $timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'failed', error_message = 'Timeout: Process hung or was terminated by the OS.' WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 15 MINUTE");
+    // Timeout check: if a task is stuck in 'processing' status for more than 3 minutes, mark as failed
+    $timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'failed', error_message = 'Timeout: Process hung or was terminated by the OS.' WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 3 MINUTE");
     $timeoutStmt->execute();
     if ($timeoutStmt->rowCount() > 0) {
         @exec("php " . __DIR__ . "/cleanup_zombies.php > /dev/null 2>&1 &");
