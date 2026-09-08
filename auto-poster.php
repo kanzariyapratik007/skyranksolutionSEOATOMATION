@@ -3740,7 +3740,7 @@ function runPlatformAutoPost(string $platform, array $creds, array $project, int
                 }
             }
             // Fallback to Playwright if API not configured or unsupported
-            return runSeleniumBridge('pinterest', $creds, $project, $projectId);
+            return seleniumPinterest($creds, $keyword, $site, $projectId);
 
         case 'bluesky':            $rawPass = $creds['password'] ?? '';
             $password = base64_decode($rawPass, true);
