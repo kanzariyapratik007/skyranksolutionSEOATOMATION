@@ -488,17 +488,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 except Exception as e:
                     log(f"Publish attempt {attempt+1}: {e}")
                 page.wait_for_timeout(3000)
-                            txt = btn.inner_text().strip()
-                            if txt == 'Publish' and btn.is_visible() and btn.is_enabled():
-                                btn.click()
-                                log("Published via Publish button click!")
-                                published = True
-                                break
-                    if published:
-                        break
-                except Exception as e:
-                    log(f"Publish attempt {attempt+1} failed: {e}")
-                page.wait_for_timeout(3000)
                 
             # ── Step 9: Get Pin URL ────────────────────────────────────
             log("Waiting for published Pin URL...")
