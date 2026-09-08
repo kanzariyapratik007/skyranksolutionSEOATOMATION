@@ -147,20 +147,32 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 except Exception:
                     pass
 
-                # Check if session is authenticated
-                log("Verifying session via /me/...")
+                # Check if session is authenticated by navigating to pin creation tool
+                log("Verifying session via pin creation tool...")
                 logged_in = False
                 try:
-                    page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=30000)
-                    page.wait_for_timeout(3000)
-                    if "/me" not in page.url and "login" not in page.url and page.url.rstrip("/") != "https://www.pinterest.com":
+                    page.goto("https://www.pinterest.com/pin-creation-tool/", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(4000)
+                    curr_u = page.url.lower()
+                    if "login" not in curr_u and "signup" not in curr_u:
                         logged_in = True
-                except Exception:
-                    pass
+                        log("Session verified: logged in successfully!")
+                except Exception as ve:
+                    log(f"Verification error: {ve}")
 
                 if not logged_in:
-                    log(f"Login failure — check screenshot at pinterest_login_failed.png (Current URL: {page.url})")
-                    result(False, error=f"Pinterest login failed — please check password or email verification for {email}.")
+                    # Extract any visible error text from login modal
+                    err_msg = ""
+                    try:
+                        err_elem = page.locator("[data-test-id*='error'], form p, div[role='alert']").first
+                        if err_elem.count() > 0 and err_elem.is_visible():
+                            err_msg = err_elem.inner_text().strip()
+                    except Exception:
+                        pass
+                    
+                    fail_reason = f"Pinterest login failed — {err_msg}" if err_msg else f"Pinterest login failed — please check password or email verification for {email}."
+                    log(f"Login failure: {fail_reason} (Current URL: {page.url})")
+                    result(False, error=fail_reason)
                     context.close()
                     return
             try:
