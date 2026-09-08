@@ -55,7 +55,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             ]
             
             headless_mode = True
-            if os.environ.get("DISPLAY") or os.environ.get("USE_HEADFUL") == "1" or sys.platform != "win32":
+            if os.environ.get("USE_HEADFUL") == "1":
                 headless_mode = False
 
             # Support system installed Google Chrome on Windows/Linux
