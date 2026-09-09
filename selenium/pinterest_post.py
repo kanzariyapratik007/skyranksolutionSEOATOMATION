@@ -373,13 +373,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 "[data-test-id='pin-builder-description'] [contenteditable='true']",
                 "[data-test-id='pin-builder-description'] textarea",
                 "[data-test-id='pin-builder-description'] div[role='textbox']",
-                "div[role='textbox'][aria-label*='description' i]",
-                "div[role='textbox'][aria-label*='Tell' i]",
-                "div[role='textbox']",
-                "#storyboard-selector-description",
+                "[data-test-id='description-field']",
+                "div[aria-label*='description' i]",
+                "div[aria-label*='Tell' i]",
+                "div[placeholder*='description' i]",
+                "div[placeholder*='Tell' i]",
                 "textarea[placeholder*='description' i]",
-                "textarea[placeholder*='Tell everyone' i]",
-                "[contenteditable='true']",
+                "textarea[placeholder*='Tell' i]",
+                "[data-test-id='pin-builder-description']",
                 ".public-DraftEditor-editor"
             ]
             cd = None
@@ -388,6 +389,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     elements = driver.find_elements(By.CSS_SELECTOR, sel)
                     for el in elements:
                         if el and (el.is_displayed() or el.get_attribute("contenteditable") == "true" or el.get_attribute("role") == "textbox"):
+                            # Skip if this element is actually the title input
+                            el_id = el.get_attribute("id") or ""
+                            if "title" in el_id.lower():
+                                continue
                             cd = el
                             break
                     if cd:
