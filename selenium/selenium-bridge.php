@@ -43,13 +43,20 @@ function runSeleniumScript(string $script, array $args, int $timeout = 240): arr
         }
     }
 
-    if (!empty($xvfbPath)) {
-        $cmd = escapeshellarg($xvfbPath) . ' -a ' . escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+    if ($isLinux) {
+        if (!empty($xvfbPath)) {
+            $cmd = escapeshellarg($xvfbPath) . ' -a ' . escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+        } else {
+            $cmd = escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
+        }
+        foreach ($args as $arg) {
+            $cmd .= ' ' . escapeshellarg((string)$arg);
+        }
     } else {
-        $cmd = escapeshellarg(PYTHON_EXE) . ' ' . escapeshellarg($scriptPath);
-    }
-    foreach ($args as $arg) {
-        $cmd .= ' ' . escapeshellarg((string)$arg);
+        $cmd = '"' . PYTHON_EXE . '" "' . $scriptPath . '"';
+        foreach ($args as $arg) {
+            $cmd .= ' "' . str_replace('"', '""', (string)$arg) . '"';
+        }
     }
 
     // Run with timeout
