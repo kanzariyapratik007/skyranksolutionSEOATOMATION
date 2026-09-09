@@ -348,19 +348,25 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         log("Pin builder opened")
 
         # ── Step 3: Upload image ───────────────────────────────────
+        def is_valid_file(p):
+            try:
+                return bool(p and os.path.exists(p) and os.path.getsize(p) > 50)
+            except Exception:
+                return False
+
         real_image_path = image_path
-        if not real_image_path or not os.path.exists(real_image_path) or os.path.getsize(real_image_path) < 50:
+        if not is_valid_file(real_image_path):
             uploads_dir = "/var/www/html/uploads"
             if os.path.exists(uploads_dir):
                 for f in os.listdir(uploads_dir):
                     if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
                         candidate = os.path.join(uploads_dir, f)
-                        if os.path.getsize(candidate) > 50:
+                        if is_valid_file(candidate):
                             real_image_path = candidate
                             log(f"Found fallback image in uploads: {real_image_path}")
                             break
 
-        if not real_image_path or not os.path.exists(real_image_path) or os.path.getsize(real_image_path) < 50:
+        if not is_valid_file(real_image_path):
             try:
                 fallback_file = "/tmp/pinterest_fallback_pin.jpg"
                 import urllib.request
@@ -371,14 +377,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 )
                 with urllib.request.urlopen(req, timeout=10) as resp, open(fallback_file, 'wb') as out_f:
                     out_f.write(resp.read())
-                if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 100:
+                if is_valid_file(fallback_file):
                     real_image_path = fallback_file
                     log(f"Downloaded fallback pin image to {fallback_file}")
             except Exception as e_dl:
                 log(f"Fallback image download error: {e_dl}")
 
         image_uploaded = False
-        if real_image_path and os.path.exists(real_image_path):
+        if is_valid_file(real_image_path):
             log(f"Uploading image: {real_image_path}...")
             try:
                 up = None
