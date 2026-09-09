@@ -226,8 +226,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass_field.send_keys(Keys.CONTROL + "a")
                     pass_field.send_keys(Keys.BACKSPACE)
                     set_input_value(driver, pass_field, password)
-                    pass_field.send_keys(password)
-                    time.sleep(0.5)
+                # Find submit button
+                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], [data-test-id='registerFormSubmitButton'] button, button.red.SignupButton, button.red.LoginButton")
+                submit_btn = None
+                for sb in submit_buttons:
+                    if sb.is_displayed():
+                        submit_btn = sb
+                        break
+                if not submit_btn and submit_buttons:
+                    submit_btn = submit_buttons[0]
 
                 log("Submitting login form via ENTER key and click...")
                 if pass_field:
@@ -246,7 +253,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 for wait_i in range(15):
                     time.sleep(1)
                     curr = driver.current_url.lower()
-                    if "login" not in curr and "signup" not in curr and "pinterest.com" in curr:
+                    if "login" not in curr and "signup" not in curr and "pinterest.com" in curr and curr.strip("/") != "https://www.pinterest.com":
                         log(f"Login redirect detected! Current URL: {driver.current_url}")
                         break
             except Exception as e:
