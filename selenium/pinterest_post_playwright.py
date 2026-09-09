@@ -373,35 +373,44 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Filling description...")
             try:
                 desc_input = None
-                candidates = page.locator("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor, textarea:not([name*='recaptcha']):not([id*='recaptcha'])")
+                candidates = page.locator("#storyboard-selector-description, [data-test-id='pin-builder-description'], [data-test-id='pin-draft-description'], [data-test-id='storyboard-selector-description'], textarea[id*='description'], textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], [contenteditable='true'], .public-DraftEditor-editor, textarea")
                 for idx in range(candidates.count()):
                     c = candidates.nth(idx)
                     if c.is_visible():
-                        desc_input = c
-                        break
+                        is_valid = c.evaluate("""el => {
+                            const tag = el.tagName.toLowerCase();
+                            const isCE = el.isContentEditable || el.getAttribute('contenteditable') === 'true';
+                            return (tag === 'textarea' || tag === 'input' || isCE) && el.name !== 'g-recaptcha-response' && el.id !== 'g-recaptcha-response';
+                        }""")
+                        if is_valid:
+                            desc_input = c
+                            break
                 
                 if desc_input:
                     desc_input.scroll_into_view_if_needed()
                     desc_input.click(force=True)
                     page.wait_for_timeout(300)
-                    desc_input.fill(desc)
+                    is_ce = desc_input.evaluate("el => el.isContentEditable || el.getAttribute('contenteditable') === 'true'")
+                    if is_ce:
+                        page.keyboard.type(desc)
+                    else:
+                        desc_input.fill(desc)
                     page.wait_for_timeout(300)
                     page.evaluate("""(d) => {
-                        const el = document.querySelector("#storyboard-selector-description, [data-test-id*='description'], [contenteditable='true'], .public-DraftEditor-editor");
+                        const el = document.querySelector("#storyboard-selector-description, [data-test-id='pin-builder-description'], [contenteditable='true'], .public-DraftEditor-editor");
                         if (el) {
-                            el.innerText = d;
+                            if (el.isContentEditable) el.innerText = d;
                             el.dispatchEvent(new Event('input', { bubbles: true }));
                             el.dispatchEvent(new Event('change', { bubbles: true }));
                         }
                     }""", desc)
-                    page.keyboard.type(" ")
                     log("Description OK!")
                 else:
                     log("Description input element not visible — typing directly...")
                     ce = page.locator("[contenteditable='true']").first
                     if ce.count() > 0 and ce.is_visible():
                         ce.click(force=True)
-                        ce.fill(desc)
+                        page.keyboard.type(desc)
                         log("Description OK (contenteditable fill)!")
                     else:
                         page.keyboard.type(desc, delay=2)
@@ -413,12 +422,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Filling link...")
             try:
                 link_input = None
-                link_candidates = page.locator("input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], [data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], input[placeholder*='Add a link' i], input[id*='link']")
+                link_candidates = page.locator("[data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], [data-test-id='storyboard-selector-link'], input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], input[placeholder*='Add a link' i], input[placeholder*='Website' i], textarea[placeholder*='link' i], input[type='text']")
                 for idx in range(link_candidates.count()):
                     lc = link_candidates.nth(idx)
                     if lc.is_visible():
-                        link_input = lc
-                        break
+                        is_valid = lc.evaluate("el => (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.type !== 'file'")
+                        if is_valid:
+                            link_input = lc
+                            break
                 if link_input:
                     link_input.scroll_into_view_if_needed()
                     link_input.click(force=True)
@@ -433,7 +444,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Opening board dropdown...")
             try:
                 board_btn = None
-                board_candidates = page.locator("[data-test-id='board-dropdown-select-button'], [data-test-id='board-picker-select-button'], [data-test-id='board-picker-button'], [data-test-id='pin-builder-board-dropdown'], button:has-text('Select'), button:has-text('Choose'), div[role='button']:has-text('Select'), div[role='button']:has-text('Choose'), [aria-label*='board' i]")
+                board_candidates = page.locator("[data-test-id='board-dropdown-select-button'], [data-test-id='board-picker-select-button'], [data-test-id='board-picker-button'], [data-test-id='pin-builder-board-dropdown'], [data-test-id='board-selection-button'], button:has-text('Select'), button:has-text('Choose'), div[role='button']:has-text('Select'), div[role='button']:has-text('Choose'), [aria-label*='board' i], [aria-label*='Board' i]")
                 for idx in range(board_candidates.count()):
                     bc = board_candidates.nth(idx)
                     if bc.is_visible():
