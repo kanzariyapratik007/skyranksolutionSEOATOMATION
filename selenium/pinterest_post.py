@@ -128,20 +128,44 @@ def get_driver(email="default", proxy=None):
                         except Exception:
                             pass
         try:
+            # 1. Try standard Selenium Manager auto-resolution first
+            driver = webdriver.Chrome(options=opts)
+        except Exception as e_mgr:
+            last_err = str(e_mgr)
+            log(f"Selenium Manager launch attempt {attempt+1} failed: {e_mgr}")
             if sys_chromedriver:
-                service = Service(sys_chromedriver)
-                driver  = webdriver.Chrome(service=service, options=opts)
-            else:
-                driver  = webdriver.Chrome(options=opts)
-            if driver:
-                break
-        except Exception as e_driver:
-            last_err = str(e_driver)
-            log(f"Chrome launch attempt {attempt+1} failed: {e_driver}")
-            time.sleep(2)
+                try:
+                    service = Service(sys_chromedriver)
+                    driver  = webdriver.Chrome(service=service, options=opts)
+                except Exception as e_sys:
+                    last_err = str(e_sys)
+                    log(f"System chromedriver attempt {attempt+1} failed: {e_sys}")
+
+        if driver:
+            break
+
+        # Fallback profile directory on subsequent attempt if profile dir was locked
+        if attempt == 1:
+            import tempfile
+            fallback_dir = tempfile.mkdtemp(prefix="chrome_fb_")
+            opts = Options()
+            if sys.platform != "win32":
+                opts.add_argument('--headless=new')
+                opts.add_argument('--disable-gpu')
+                opts.add_argument('--disable-software-rasterizer')
+            opts.add_argument('--no-sandbox')
+            opts.add_argument('--disable-dev-shm-usage')
+            opts.add_argument('--disable-blink-features=AutomationControlled')
+            opts.add_experimental_option('excludeSwitches', ['enable-automation'])
+            opts.add_experimental_option('useAutomationExtension', False)
+            opts.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36')
+            opts.add_argument('--window-size=1920,1080')
+            opts.add_argument(f'--user-data-dir={fallback_dir}')
+
+        time.sleep(2)
 
     if not driver:
-        log(f"All Chrome launch attempts failed. Error: {last_err}")
+        log(f"All Chrome launch attempts failed. Details: {last_err}")
         return None
 
     try:
