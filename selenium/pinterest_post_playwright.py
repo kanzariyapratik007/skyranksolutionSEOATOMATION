@@ -341,19 +341,33 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             # ── Step 4: Title ──────────────────────────────────────────
             title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
-            log("Filling title...")
+            log(f"Filling title: '{title[:60]}...'")
             try:
-                title_input = page.locator("#storyboard-selector-title, input[id*='storyboard-selector-title'], textarea[id*='storyboard-selector-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], [data-test-id='pin-builder-title'], [data-test-id='pin-draft-title'], input[placeholder*='Add your title' i], input[type='text']").first
-                if title_input.count() > 0:
+                title_input = None
+                title_candidates = page.locator("[data-test-id='pin-builder-title'] input, [data-test-id='pin-builder-title'] textarea, #storyboard-selector-title, [data-test-id='pin-draft-title'], input[placeholder*='title' i], textarea[placeholder*='title' i], input[placeholder*='Add your title' i], textarea[placeholder*='Add your title' i]")
+                for idx in range(title_candidates.count()):
+                    c = title_candidates.nth(idx)
+                    if c.is_visible():
+                        title_input = c
+                        break
+
+                if title_input:
                     title_input.scroll_into_view_if_needed()
                     title_input.click(force=True)
+                    title_input.fill("")
                     title_input.fill(title[:100])
+                    page.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", title_input.element_handle(), title[:100])
                     log("Title OK!")
                 else:
-                    log("Title input not found by locator — trying keyboard input fallback...")
+                    log("Title input specific locator not found — trying focused title click...")
+                    t_area = page.locator("[data-test-id='pin-builder-title']").first
+                    if t_area.count() > 0 and t_area.is_visible():
+                        t_area.click(force=True)
+                        page.keyboard.type(title[:100])
+                        log("Title OK (focused click)!")
             except Exception as e:
                 log(f"Title: {e}")
-                
+
             # ── Step 5: Description ────────────────────────────────────
             if ai_content and len(ai_content.strip()) > 50:
                 desc = ai_content.strip()
@@ -373,19 +387,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Filling description...")
             try:
                 desc_input = None
-                candidates = page.locator("#storyboard-selector-description, [data-test-id='pin-builder-description'], [data-test-id='pin-draft-description'], [data-test-id='storyboard-selector-description'], textarea[id*='description'], textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], [contenteditable='true'], .public-DraftEditor-editor, textarea")
+                candidates = page.locator("[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, #storyboard-selector-description, [data-test-id='pin-draft-description'], textarea[id*='description'], textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], .public-DraftEditor-editor")
                 for idx in range(candidates.count()):
                     c = candidates.nth(idx)
                     if c.is_visible():
-                        is_valid = c.evaluate("""el => {
-                            const tag = el.tagName.toLowerCase();
-                            const isCE = el.isContentEditable || el.getAttribute('contenteditable') === 'true';
-                            return (tag === 'textarea' || tag === 'input' || isCE) && el.name !== 'g-recaptcha-response' && el.id !== 'g-recaptcha-response';
-                        }""")
-                        if is_valid:
-                            desc_input = c
-                            break
-                
+                        desc_input = c
+                        break
+
                 if desc_input:
                     desc_input.scroll_into_view_if_needed()
                     desc_input.click(force=True)
@@ -396,47 +404,42 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     else:
                         desc_input.fill(desc)
                     page.wait_for_timeout(300)
-                    page.evaluate("""(d) => {
-                        const el = document.querySelector("#storyboard-selector-description, [data-test-id='pin-builder-description'], [contenteditable='true'], .public-DraftEditor-editor");
-                        if (el) {
-                            if (el.isContentEditable) el.innerText = d;
-                            el.dispatchEvent(new Event('input', { bubbles: true }));
-                            el.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    }""", desc)
                     log("Description OK!")
                 else:
-                    log("Description input element not visible — typing directly...")
+                    log("Description input element not visible — trying fallback...")
                     ce = page.locator("[contenteditable='true']").first
                     if ce.count() > 0 and ce.is_visible():
                         ce.click(force=True)
                         page.keyboard.type(desc)
                         log("Description OK (contenteditable fill)!")
-                    else:
-                        page.keyboard.type(desc, delay=2)
-                        log("Description OK (keyboard fallback)!")
             except Exception as e:
                 log(f"Desc error: {e}")
-            
+
             # ── Step 6: Link ───────────────────────────────────────────
-            log("Filling link...")
+            log(f"Filling link: '{target_site}'...")
             try:
                 link_input = None
-                link_candidates = page.locator("[data-test-id='pin-builder-link'], [data-test-id='pin-draft-link'], [data-test-id='storyboard-selector-link'], input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], input[placeholder*='Add a link' i], input[placeholder*='Website' i], textarea[placeholder*='link' i], input[type='text']")
+                link_candidates = page.locator("[data-test-id='pin-builder-link'] input, [data-test-id='pin-builder-link'] textarea, [data-test-id='pin-draft-link'] input, #storyboard-selector-link, input[name='link'], input[id='WebsiteField'], input[placeholder*='link' i], input[placeholder*='destination' i], input[placeholder*='Add a link' i], input[placeholder*='Website' i]")
                 for idx in range(link_candidates.count()):
                     lc = link_candidates.nth(idx)
                     if lc.is_visible():
-                        is_valid = lc.evaluate("el => (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && el.type !== 'file'")
-                        if is_valid:
-                            link_input = lc
-                            break
+                        link_input = lc
+                        break
+
                 if link_input:
                     link_input.scroll_into_view_if_needed()
                     link_input.click(force=True)
+                    link_input.fill("")
                     link_input.fill(target_site)
+                    page.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", link_input.element_handle(), target_site)
                     log("Link OK!")
                 else:
-                    log("Link input not found — using keyboard tab to fill link...")
+                    log("Link input specific locator not found — trying area click...")
+                    l_area = page.locator("[data-test-id='pin-builder-link']").first
+                    if l_area.count() > 0 and l_area.is_visible():
+                        l_area.click(force=True)
+                        page.keyboard.type(target_site)
+                        log("Link OK (focused click)!")
             except Exception as e:
                 log(f"Link error: {e}")
                 
