@@ -372,6 +372,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             desc_selectors = [
                 "[data-test-id='pin-builder-description'] [contenteditable='true']",
                 "[data-test-id='pin-builder-description'] textarea",
+                "[data-test-id='pin-builder-description'] div[role='textbox']",
+                "div[role='textbox'][aria-label*='description' i]",
+                "div[role='textbox'][aria-label*='Tell' i]",
+                "div[role='textbox']",
                 "#storyboard-selector-description",
                 "textarea[placeholder*='description' i]",
                 "textarea[placeholder*='Tell everyone' i]",
@@ -382,8 +386,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             for sel in desc_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, sel)
-                    if elements and elements[0].is_displayed():
-                        cd = elements[0]
+                    for el in elements:
+                        if el and (el.is_displayed() or el.get_attribute("contenteditable") == "true" or el.get_attribute("role") == "textbox"):
+                            cd = el
+                            break
+                    if cd:
                         break
                 except:
                     continue
@@ -391,12 +398,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             if cd:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", cd)
                 time.sleep(0.3)
-                js_click(driver, cd)
+                try:
+                    cd.click()
+                except Exception:
+                    driver.execute_script("arguments[0].click();", cd)
                 time.sleep(0.2)
                 try:
                     cd.send_keys(desc)
                 except Exception:
-                    driver.execute_script("arguments[0].innerHTML = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", cd, desc)
+                    set_input_value(driver, cd, desc)
                 log("Description OK!")
             else:
                 log("Description element not found via selectors")
