@@ -400,18 +400,31 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 except:
                     continue
 
+            if not cd:
+                # Fallback: The 2nd editable text element on the Pin Builder canvas is Description
+                all_editables = driver.find_elements(By.CSS_SELECTOR, "textarea, [contenteditable='true'], div[role='textbox']")
+                valid_editables = []
+                for el in all_editables:
+                    try:
+                        if el.is_displayed():
+                            valid_editables.append(el)
+                    except Exception:
+                        pass
+                if len(valid_editables) >= 2:
+                    cd = valid_editables[1]
+                    log("Description found via 2nd canvas editable fallback!")
+
             if cd:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", cd)
                 time.sleep(0.3)
                 try:
-                    cd.click()
+                    ActionChains(driver).move_to_element(cd).click().send_keys(desc).perform()
                 except Exception:
-                    driver.execute_script("arguments[0].click();", cd)
-                time.sleep(0.2)
-                try:
-                    cd.send_keys(desc)
-                except Exception:
-                    set_input_value(driver, cd, desc)
+                    try:
+                        cd.click()
+                        cd.send_keys(desc)
+                    except Exception:
+                        set_input_value(driver, cd, desc)
                 log("Description OK!")
             else:
                 log("Description element not found via selectors")
