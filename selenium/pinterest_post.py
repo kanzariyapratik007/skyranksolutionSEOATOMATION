@@ -229,28 +229,26 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass_field.send_keys(password)
                     time.sleep(0.5)
 
-                # Find all potential submit buttons and choose the displayed one
-                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], [data-test-id='registerFormSubmitButton'] button, button.red.SignupButton, button.red.LoginButton")
-                log(f"Found {len(submit_buttons)} submit button candidate(s)")
-                submit_btn = None
-                for sb in submit_buttons:
-                    if sb.is_displayed():
-                        submit_btn = sb
-                        break
-                if not submit_btn and submit_buttons:
-                    submit_btn = submit_buttons[0]
-
-                if submit_btn:
-                    log("Clicking submit button...")
+                log("Submitting login form via ENTER key and click...")
+                if pass_field:
                     try:
-                        driver.execute_script("arguments[0].click();", submit_btn)
-                    except Exception:
-                        submit_btn.click()
-                else:
-                    log("Submitting via ENTER key on password field...")
-                    if pass_field:
                         pass_field.send_keys(Keys.ENTER)
-                time.sleep(8)
+                    except Exception:
+                        pass
+                
+                if submit_btn:
+                    try:
+                        submit_btn.click()
+                    except Exception:
+                        driver.execute_script("arguments[0].click();", submit_btn)
+
+                log("Waiting for authentication redirect...")
+                for wait_i in range(15):
+                    time.sleep(1)
+                    curr = driver.current_url.lower()
+                    if "login" not in curr and "signup" not in curr and "pinterest.com" in curr:
+                        log(f"Login redirect detected! Current URL: {driver.current_url}")
+                        break
             except Exception as e:
                 log(f"Login form error: {e}")
 
