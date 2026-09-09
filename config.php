@@ -163,6 +163,73 @@ function getEnqueuedImagePath() {
     return $enqueuedImage;
 }
 
+function resolveProjectImagePath($projectId = 0, $enqueuedImg = null, $projectImg = null) {
+    $uploadDir = __DIR__ . '/uploads/';
+
+    if (empty($enqueuedImg)) {
+        $enqueuedImg = function_exists('getEnqueuedImagePath') ? getEnqueuedImagePath() : null;
+    }
+
+    $tryFile = function($path) use ($uploadDir) {
+        if (empty($path)) return '';
+        if (file_exists($path) && is_file($path)) return realpath($path);
+        $inUploads = $uploadDir . basename($path);
+        if (file_exists($inUploads) && is_file($inUploads)) return realpath($inUploads);
+        return '';
+    };
+
+    // Priority 1: Explicitly enqueued image
+    $res = $tryFile($enqueuedImg);
+    if (!empty($res)) return $res;
+
+    // Priority 2: Passed project image
+    $res = $tryFile($projectImg);
+    if (!empty($res)) return $res;
+
+    // Priority 3: Fetch post_image directly from projects DB table if projectId given
+    if ($projectId > 0) {
+        try {
+            $db = getDBConnection();
+            if ($db) {
+                $stmt = $db->prepare("SELECT post_image FROM projects WHERE id=?");
+                $stmt->execute([$projectId]);
+                $dbImg = $stmt->fetchColumn();
+                $res = $tryFile($dbImg);
+                if (!empty($res)) return $res;
+            }
+        } catch (Throwable $e) {}
+    }
+
+    // Priority 4: Search for any project uploaded/generated file in uploads/ matching project_<id>_*
+    if ($projectId > 0) {
+        $patterns = [
+            $uploadDir . 'project_' . $projectId . '_*',
+            $uploadDir . 'poster_' . $projectId . '_*',
+            $uploadDir . 'auto_img_*' . $projectId . '*'
+        ];
+        $matchedFiles = [];
+        foreach ($patterns as $pattern) {
+            $found = glob($pattern);
+            if ($found) {
+                $matchedFiles = array_merge($matchedFiles, $found);
+            }
+        }
+        if (!empty($matchedFiles)) {
+            usort($matchedFiles, fn($a, $b) => filemtime($b) - filemtime($a));
+            return realpath($matchedFiles[0]);
+        }
+    }
+
+    // Priority 5: Latest image file in uploads directory
+    $allImages = glob($uploadDir . '*.{jpg,jpeg,png,webp,gif}', GLOB_BRACE);
+    if ($allImages) {
+        usort($allImages, fn($a, $b) => filemtime($b) - filemtime($a));
+        return realpath($allImages[0]);
+    }
+
+    return '';
+}
+
 function formatLocalTime($utcDateTime, $format = 'd M H:i', $timezone = 'Asia/Kolkata') {
     if (empty($utcDateTime)) return '';
     try {

@@ -216,21 +216,17 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
     $aiDesc = mb_substr($aiDesc, 0, 500, 'UTF-8');
 
     // Find or generate vertical project image
-    $imagePath = '';
-    $uploadDir = dirname(__DIR__) . '/uploads/';
+    $enqueuedImg = function_exists('getEnqueuedImagePath') ? getEnqueuedImagePath() : null;
+    $imagePath   = function_exists('resolveProjectImagePath')
+        ? resolveProjectImagePath($projectId, $enqueuedImg, $projectImg)
+        : '';
 
-    // 1. Get project details including post_image (already loaded)
-
-    // 2. Use project_image if exists
-    if ($projectImg && file_exists($uploadDir . $projectImg)) {
-        $imagePath = $uploadDir . $projectImg;
-    } else {
-        // 3. Try vertical image
+    if (empty($imagePath)) {
+        $uploadDir = dirname(__DIR__) . '/uploads/';
         $verticalImage = $uploadDir . 'auto_img_vertical_' . $projectId . '.jpg';
         if (file_exists($verticalImage)) {
             $imagePath = $verticalImage;
         } else {
-            // 4. Generate vertical image (1000x1500 px) on the fly
             require_once dirname(__DIR__) . '/image-generator.php';
             $phone = !empty($dbPhone) ? $dbPhone : '9036354554';
             $imgEmail = !empty($dbEmail) ? $dbEmail : 'office.learnmore@gmail.com';
@@ -238,15 +234,6 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
             if (!empty($res['success'])) {
                 $imagePath = $verticalImage;
             }
-        }
-    }
-
-    if (empty($imagePath)) {
-        // Fallback: Find latest project image
-        $images = glob($uploadDir . '*.{jpg,jpeg,png}', GLOB_BRACE);
-        if ($images) {
-            usort($images, fn($a, $b) => filemtime($b) - filemtime($a));
-            $imagePath = $images[0];
         }
     }
 
