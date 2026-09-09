@@ -368,20 +368,18 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         if not is_valid_file(real_image_path):
             try:
-                fallback_file = "/tmp/pinterest_fallback_pin.jpg"
-                import urllib.request
-                log("Downloading fallback Pin image (800x1200)...")
-                req = urllib.request.Request(
-                    "https://picsum.photos/800/1200",
-                    headers={'User-Agent': 'Mozilla/5.0'}
-                )
-                with urllib.request.urlopen(req, timeout=10) as resp, open(fallback_file, 'wb') as out_f:
-                    out_f.write(resp.read())
+                fallback_file = "/tmp/pinterest_fallback_pin.bmp"
+                w, h = 800, 1200
+                f_hdr = b'BM' + (54 + w * h * 3).to_bytes(4, 'little') + (0).to_bytes(4, 'little') + (54).to_bytes(4, 'little')
+                i_hdr = (40).to_bytes(4, 'little') + w.to_bytes(4, 'little') + h.to_bytes(4, 'little') + (1).to_bytes(2, 'little') + (24).to_bytes(2, 'little') + (0).to_bytes(24, 'little')
+                pix = b'\xe6\x7d\x1e' * (w * h)
+                with open(fallback_file, 'wb') as f_out:
+                    f_out.write(f_hdr + i_hdr + pix)
                 if is_valid_file(fallback_file):
                     real_image_path = fallback_file
-                    log(f"Downloaded fallback pin image to {fallback_file}")
-            except Exception as e_dl:
-                log(f"Fallback image download error: {e_dl}")
+                    log(f"Generated local fallback Pin image: {fallback_file}")
+            except Exception as e_gen:
+                log(f"Local image gen error: {e_gen}")
 
         image_uploaded = False
         if is_valid_file(real_image_path):
