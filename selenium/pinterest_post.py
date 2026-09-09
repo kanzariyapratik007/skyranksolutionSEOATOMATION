@@ -60,14 +60,20 @@ def get_driver(email="default", proxy=None):
 
     import hashlib, getpass, zipfile
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
-    profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}')
-    zip_path = os.path.join(script_dir, 'pinterest_cookies.zip')
+    profile_base = '/tmp' if sys.platform != 'win32' else script_dir
+    profile_dir = os.path.join(profile_base, f'chrome_profile_pinterest_{email_hash}')
+    os.makedirs(profile_dir, mode=0o777, exist_ok=True)
+    try:
+        os.chmod(profile_dir, 0o777)
+    except Exception:
+        pass
 
+    zip_path = os.path.join(script_dir, 'pinterest_cookies.zip')
     if not os.path.exists(profile_dir) and os.path.exists(zip_path):
         try:
             log("Restoring saved login session cookies from pinterest_cookies.zip...")
             target_default = os.path.join(profile_dir, 'Default')
-            os.makedirs(target_default, exist_ok=True)
+            os.makedirs(target_default, mode=0o777, exist_ok=True)
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(target_default)
             log("Session cookies successfully restored!")
