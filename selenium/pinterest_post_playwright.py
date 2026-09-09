@@ -532,12 +532,18 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception:
                 pass
                 
-            # 3. Always check /me/ user profile page to extract latest created Pin URL or Profile URL
+            # 3. Always check /me/_created/ user profile page to extract latest created Pin URL
             try:
-                log("Navigating to /me/ profile page to extract latest Pin URL...")
-                page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=25000)
-                page.wait_for_timeout(4000)
+                log("Navigating to /me/_created/ profile page to extract latest Pin URL...")
+                page.goto("https://www.pinterest.com/me/_created/", wait_until="domcontentloaded", timeout=25000)
+                page.wait_for_timeout(3000)
                 
+                # Click Created tab if visible
+                created_tab = page.locator("[data-test-id='created-tab'], [role='tab']:has-text('Created'), a[href*='_created']").first
+                if created_tab.count() > 0 and created_tab.is_visible():
+                    created_tab.click(force=True)
+                    page.wait_for_timeout(2000)
+
                 # Check for pin links on profile page
                 profile_pin_links = page.locator("a[href*='/pin/']")
                 if profile_pin_links.count() > 0:
