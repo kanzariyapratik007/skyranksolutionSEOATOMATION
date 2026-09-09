@@ -75,8 +75,8 @@ function isSeleniumPlatform($platform, $creds = []) {
     return false; // Runs via API (fast)
 }
 
-// Get the batch limits (maximum 5 API tasks and 1 Selenium task per execution)
-$maxApiTasks = 5;
+// Get the batch limits (maximum 15 API tasks and 1 Selenium task per execution)
+$maxApiTasks = 15;
 $maxSeleniumTasks = 1;
 
 // Get a larger pool of oldest pending tasks to filter
