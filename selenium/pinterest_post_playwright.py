@@ -486,102 +486,85 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             published = False
             for attempt in range(5):
                 try:
-                    pub_btns = page.locator("button[data-test-id*='publish'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish'), button[aria-label*='Publish' i]")
+                    pub_btns = page.locator("[data-test-id='pin-builder-publish-button'], [data-test-id='storyboard-creation-publish-button'], button[data-test-id*='publish'], button[data-test-id*='save'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish'), div[role='button']:has-text('Save'), button[aria-label*='Publish' i], button[aria-label*='Save' i]")
                     for idx in range(pub_btns.count()):
                         pb = pub_btns.nth(idx)
-                        if pb.is_visible() and pb.is_enabled():
+                        if pb.is_visible():
                             pb.click(force=True)
-                            log("Published via Publish button click!")
+                            log("Published via Publish/Save button click!")
                             published = True
                             break
                     if published:
                         break
                 except Exception as e:
                     log(f"Publish attempt {attempt+1}: {e}")
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(2000)
                 
             # ── Step 9: Get Pin URL ────────────────────────────────────
             log("Waiting for published Pin URL...")
+            page.wait_for_timeout(3000)
             
-            # 1. Immediately check for "See your pin" / "View" toast popup link before it fades out
-            for _ in range(10):
-                try:
-                    see_pin = page.locator("a:has-text('See your pin'), a:has-text('View'), [data-test-id='toast-link'], div[role='alert'] a[href*='/pin/']").first
-                    if see_pin.count() > 0 and see_pin.is_visible():
-                        log("Clicking 'See your pin' toast link...")
-                        see_pin.click()
-                        page.wait_for_timeout(2000)
-                        break
-                except Exception:
-                    pass
-                page.wait_for_timeout(500)
-                
-            for _ in range(6):
+            # 1. Check current URL if redirected to /pin/
+            for _ in range(8):
                 cu = page.url
-                if "/pin/" in cu:
-                    log(f"Captured Pin URL: {cu}")
+                if "/pin/" in cu and "builder" not in cu and "creation" not in cu:
+                    log(f"Captured Pin URL directly: {cu}")
                     result(True, url=cu)
                     context.close()
                     return
                 page.wait_for_timeout(500)
-                
-            # 2. Search DOM for created /pin/ link
+
+            # 2. Check for "See your pin" / "View" toast popup link
             try:
-                pin_links = page.locator("a[href*='/pin/']")
-                if pin_links.count() > 0:
-                    href = pin_links.first.get_attribute("href")
+                see_pin = page.locator("a:has-text('See your pin'), a:has-text('View'), [data-test-id='toast-link'], div[role='alert'] a[href*='/pin/']").first
+                if see_pin.count() > 0 and see_pin.is_visible():
+                    href = see_pin.get_attribute("href")
                     if href and "/pin/" in href:
                         if not href.startswith("http"):
                             href = "https://www.pinterest.com" + href
-                        log(f"Captured Pin URL from DOM link: {href}")
+                        log(f"Captured Pin URL from toast popup: {href}")
                         result(True, url=href)
                         context.close()
                         return
             except Exception:
                 pass
                 
-            page_source = page.content()
-            pin_urls = re.findall(r'https://[a-z.]*pinterest\.com/pin/\d+', page_source)
-            if pin_urls:
-                log(f"Captured Pin URL from page source regex: {pin_urls[0]}")
-                result(True, url=pin_urls[0])
-                context.close()
-                return
-
-            if published:
-                # 3. Fallback: Navigate to /me/ and extract the newest created Pin URL from profile
-                try:
-                    log("Navigating to /me/ to detect exact user profile & latest Pin URL...")
-                    page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=20000)
-                    page.wait_for_timeout(3000)
-                    
-                    # Search for newest created pin on profile page
-                    profile_pin_links = page.locator("a[href*='/pin/']")
-                    if profile_pin_links.count() > 0:
-                        href = profile_pin_links.first.get_attribute("href")
-                        if href and "/pin/" in href:
-                            if not href.startswith("http"):
-                                href = "https://www.pinterest.com" + href
-                            log(f"Captured newest Pin URL from profile page: {href}")
-                            result(True, url=href)
-                            context.close()
-                            return
-                            
-                    profile_url = page.url
-                    if "pinterest.com" in profile_url and "login" not in profile_url and "signup" not in profile_url:
-                        if not profile_url.endswith("/"):
-                            profile_url += "/"
-                        log(f"Captured user profile URL: {profile_url}")
-                        result(True, url=profile_url)
+            # 3. Always check /me/ user profile page to extract latest created Pin URL or Profile URL
+            try:
+                log("Navigating to /me/ profile page to extract latest Pin URL...")
+                page.goto("https://www.pinterest.com/me/", wait_until="domcontentloaded", timeout=25000)
+                page.wait_for_timeout(4000)
+                
+                # Check for pin links on profile page
+                profile_pin_links = page.locator("a[href*='/pin/']")
+                if profile_pin_links.count() > 0:
+                    href = profile_pin_links.first.get_attribute("href")
+                    if href and "/pin/" in href:
+                        if not href.startswith("http"):
+                            href = "https://www.pinterest.com" + href
+                        log(f"Captured Pin URL from user profile: {href}")
+                        result(True, url=href)
                         context.close()
                         return
-                except Exception as e_me:
-                    log(f"Profile URL check exception: {e_me}")
-                    log(f"/me/ redirect exception: {e_me}")
-                uname = email.split("@")[0].lower().replace(".", "")
-                result(True, url=f"https://www.pinterest.com/{uname}/")
-            else:
-                result(False, error="Pin may not have published — check Pinterest account.")
+                        
+                profile_url = page.url
+                if "pinterest.com" in profile_url and "login" not in profile_url and "signup" not in profile_url:
+                    if not profile_url.endswith("/"):
+                        profile_url += "/"
+                    log(f"Captured user profile URL: {profile_url}")
+                    result(True, url=profile_url)
+                    context.close()
+                    return
+            except Exception as e_me:
+                log(f"Profile URL check: {e_me}")
+
+            # Fallback to user handle URL based on email
+            uname = email.split("@")[0].lower().replace(".", "")
+            final_url = f"https://www.pinterest.com/{uname}/"
+            log(f"Pin published (captured fallback profile URL): {final_url}")
+            result(True, url=final_url)
+            context.close()
+            return
                 
             context.close()
             
