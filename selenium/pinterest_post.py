@@ -76,16 +76,17 @@ def get_driver(email="default", proxy=None):
 
     # Clean up lock files from any previous crashed runs to prevent startup crash
     if os.path.exists(profile_dir):
-        for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lock"]:
-            lock_path = os.path.join(profile_dir, lock_name)
-            if os.path.exists(lock_path) or os.path.islink(lock_path):
-                try:
-                    if os.path.islink(lock_path):
-                        os.unlink(lock_path)
-                    else:
-                        os.remove(lock_path)
-                except:
-                    pass
+        for root, dirs, files in os.walk(profile_dir):
+            for f in files:
+                if f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lock", "DevToolsActivePort"]:
+                    p = os.path.join(root, f)
+                    try:
+                        if os.path.islink(p):
+                            os.unlink(p)
+                        else:
+                            os.remove(p)
+                    except:
+                        pass
 
     opts.add_argument(f'--user-data-dir={profile_dir}')
     import shutil
