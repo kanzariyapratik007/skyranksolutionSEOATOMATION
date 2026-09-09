@@ -360,18 +360,22 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             log(f"Found fallback image in uploads: {real_image_path}")
                             break
 
-        if not real_image_path or not os.path.exists(real_image_path):
+        if not real_image_path or not os.path.exists(real_image_path) or os.path.getsize(real_image_path) < 50:
             try:
                 fallback_file = "/tmp/pinterest_fallback_pin.jpg"
-                from PIL import Image, ImageDraw
-                img = Image.new('RGB', (800, 1200), color=(30, 144, 255))
-                d = ImageDraw.Draw(img)
-                d.text((50, 500), f"Property Guide\n{keyword.title()}", fill=(255, 255, 255))
-                img.save(fallback_file, "JPEG")
-                real_image_path = fallback_file
-                log(f"Generated fallback pin image at {fallback_file}")
-            except Exception as e_pil:
-                log(f"PIL image gen error: {e_pil}")
+                import urllib.request
+                log("Downloading fallback Pin image (800x1200)...")
+                req = urllib.request.Request(
+                    "https://picsum.photos/800/1200",
+                    headers={'User-Agent': 'Mozilla/5.0'}
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp, open(fallback_file, 'wb') as out_f:
+                    out_f.write(resp.read())
+                if os.path.exists(fallback_file) and os.path.getsize(fallback_file) > 100:
+                    real_image_path = fallback_file
+                    log(f"Downloaded fallback pin image to {fallback_file}")
+            except Exception as e_dl:
+                log(f"Fallback image download error: {e_dl}")
 
         image_uploaded = False
         if real_image_path and os.path.exists(real_image_path):
