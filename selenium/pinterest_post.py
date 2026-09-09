@@ -205,8 +205,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     email_field.send_keys(Keys.CONTROL + "a")
                     email_field.send_keys(Keys.BACKSPACE)
                     set_input_value(driver, email_field, email)
-                    email_field.send_keys(email)
-                    time.sleep(0.5)
+                    time.sleep(0.3)
 
                 # Find all potential password fields and choose the displayed one
                 password_fields = driver.find_elements(By.CSS_SELECTOR, "input#password, input[name='password'], input[type='password']")
@@ -226,6 +225,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass_field.send_keys(Keys.CONTROL + "a")
                     pass_field.send_keys(Keys.BACKSPACE)
                     set_input_value(driver, pass_field, password)
+                    time.sleep(0.3)
+
                 # Find submit button
                 submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], [data-test-id='registerFormSubmitButton'] button, button.red.SignupButton, button.red.LoginButton")
                 submit_btn = None
