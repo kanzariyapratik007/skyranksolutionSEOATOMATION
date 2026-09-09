@@ -348,8 +348,34 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         log("Pin builder opened")
 
         # ── Step 3: Upload image ───────────────────────────────────
-        if image_path and os.path.exists(image_path):
-            log("Uploading image...")
+        real_image_path = image_path
+        if not real_image_path or not os.path.exists(real_image_path) or os.path.getsize(real_image_path) < 50:
+            uploads_dir = "/var/www/html/uploads"
+            if os.path.exists(uploads_dir):
+                for f in os.listdir(uploads_dir):
+                    if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                        candidate = os.path.join(uploads_dir, f)
+                        if os.path.getsize(candidate) > 50:
+                            real_image_path = candidate
+                            log(f"Found fallback image in uploads: {real_image_path}")
+                            break
+
+        if not real_image_path or not os.path.exists(real_image_path):
+            try:
+                fallback_file = "/tmp/pinterest_fallback_pin.jpg"
+                from PIL import Image, ImageDraw
+                img = Image.new('RGB', (800, 1200), color=(30, 144, 255))
+                d = ImageDraw.Draw(img)
+                d.text((50, 500), f"Property Guide\n{keyword.title()}", fill=(255, 255, 255))
+                img.save(fallback_file, "JPEG")
+                real_image_path = fallback_file
+                log(f"Generated fallback pin image at {fallback_file}")
+            except Exception as e_pil:
+                log(f"PIL image gen error: {e_pil}")
+
+        image_uploaded = False
+        if real_image_path and os.path.exists(real_image_path):
+            log(f"Uploading image: {real_image_path}...")
             try:
                 up = None
                 file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
@@ -362,11 +388,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         pass
                 if up:
                     driver.execute_script("arguments[0].style.display='block'; arguments[0].style.opacity='1'; arguments[0].style.visibility='visible';", up)
-                    up.send_keys(os.path.abspath(image_path))
+                    up.send_keys(os.path.abspath(real_image_path))
                     time.sleep(6)
                     log("Image uploaded!")
+                    image_uploaded = True
             except Exception as e:
                 log(f"Image upload: {e}")
+        else:
+            log("No valid image file found for Pin upload!")
 
         # ── Step 4: Title ──────────────────────────────────────────
         title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
@@ -699,12 +728,17 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     try:
                         txt = el.text.strip().lower()
                         test_id = (el.get_attribute('data-test-id') or '').lower()
-                        # Match 'publish', 'save', 'done', 'publish-button', 'save-button', etc.
+                        if not el.is_displayed():
+                            continue
+                        if txt in ('create new', 'add products', 'create'):
+                            continue
+                        # Match 'publish', 'save', 'done', 'publish-button', 'save-button'
                         if (txt in ('publish', 'save', 'done') or 
                             'publish' in test_id or 
-                            'save' in test_id or 
-                            'submit' in test_id):
-                            candidates.append(el)
+                            'save-button' in test_id or 
+                            'publish-button' in test_id):
+                            if el.is_enabled():
+                                candidates.append(el)
                     except:
                         pass
             
@@ -739,11 +773,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         pin_urls = re.findall(r'https://[a-z.]*pinterest\.com/pin/\d+', page)
         if pin_urls:
             result(True, url=pin_urls[0])
-        elif published:
+        elif published and image_uploaded:
             uname = email.split("@")[0].lower().replace(".", "")
             result(True, url=f"https://www.pinterest.com/{uname}/")
         else:
-            result(False, error="Pin may not have published — check Pinterest account.")
+            result(False, error="Pin save failed: Image file was missing or Publish button remained disabled.")
 
     except Exception as e:
         try:
