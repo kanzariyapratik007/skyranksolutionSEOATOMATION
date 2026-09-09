@@ -58,9 +58,22 @@ def get_driver(email="default", proxy=None):
         log(f"Using proxy: {proxy_url}")
         opts.add_argument(f'--proxy-server={proxy_url}')
 
-    import hashlib, getpass
+    import hashlib, getpass, zipfile
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
     profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}')
+    zip_path = os.path.join(script_dir, 'pinterest_cookies.zip')
+
+    if not os.path.exists(profile_dir) and os.path.exists(zip_path):
+        try:
+            log("Restoring saved login session cookies from pinterest_cookies.zip...")
+            target_default = os.path.join(profile_dir, 'Default')
+            os.makedirs(target_default, exist_ok=True)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(target_default)
+            log("Session cookies successfully restored!")
+        except Exception as e_zip:
+            log(f"Cookie restore error: {e_zip}")
+
     # Clean up lock files from any previous crashed runs to prevent startup crash
     if os.path.exists(profile_dir):
         for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lock"]:
