@@ -215,29 +215,50 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_nux:
                 log(f"NUX onboarding bypass check: {e_nux}")
 
-            # Navigate directly to pin creation tool
+            # Navigate directly to pin creation tool with fallback steps
             log("Opening Pin creation tool...")
-            try:
-                page.goto("https://www.pinterest.com/pin-builder/", wait_until="domcontentloaded", timeout=45000)
-                page.wait_for_timeout(4000)
-            except Exception as e_pb:
-                log(f"Pin builder direct navigation: {e_pb}")
+            pin_builder_open = False
+            for pb_url in ["https://www.pinterest.com/pin-builder/", "https://www.pinterest.com/pin-creation-tool/"]:
+                try:
+                    page.goto(pb_url, wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                    curr_u = page.url.lower()
+                    if "pin-creation" in curr_u or "pin-builder" in curr_u or page.locator("input[type='file'], [data-test-id='pin-builder-title']").count() > 0:
+                        pin_builder_open = True
+                        log("Pin builder canvas ready!")
+                        break
+                except Exception as e_pb:
+                    log(f"Pin builder direct navigation attempt ({pb_url}): {e_pb}")
 
-            # If redirected to home page, click Create in navigation
-            curr_url = page.url.lower()
-            if "pin-creation" not in curr_url and "pin-builder" not in curr_url:
-                log("Redirected to home page — clicking Create button in navigation...")
-                create_nav = page.locator("[data-test-id='header-create-button'], a[href*='pin-builder'], a[href*='pin-creation-tool'], a[aria-label*='Create' i], button[aria-label*='Create' i]").first
-                if create_nav.count() > 0 and create_nav.is_visible():
-                    try:
-                        create_nav.click(timeout=5000)
-                        page.wait_for_timeout(3000)
-                        pin_opt = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin')").first
-                        if pin_opt.count() > 0 and pin_opt.is_visible():
-                            pin_opt.click(timeout=3000)
-                            page.wait_for_timeout(3000)
-                    except Exception as e_c:
-                        log(f"Create navigation click: {e_c}")
+            if not pin_builder_open:
+                log("Redirected away from pin-builder — trying UI Create button clicks...")
+                create_buttons = page.locator("button:has-text('Create'), div[role='button']:has-text('Create'), a[href*='pin-builder'], a[href*='pin-creation'], [aria-label*='Create' i], [data-test-id='header-create-button'], [data-test-id='create-pin-button']").all()
+                for cb in create_buttons:
+                    if cb.is_visible():
+                        try:
+                            cb.click(force=True)
+                            page.wait_for_timeout(2000)
+                            pin_opt = page.locator("[role='menu'] a:has-text('Pin'), [role='menuitem']:has-text('Pin'), span:has-text('Pin'), div:has-text('Create Pin')").first
+                            if pin_opt.count() > 0 and pin_opt.is_visible():
+                                pin_opt.click(force=True)
+                                page.wait_for_timeout(3000)
+                            if "pin-creation" in page.url.lower() or "pin-builder" in page.url.lower() or page.locator("input[type='file'], [data-test-id='pin-builder-title']").count() > 0:
+                                pin_builder_open = True
+                                log("Pin builder canvas opened via UI click!")
+                                break
+                        except Exception as e_c:
+                            log(f"UI create click attempt: {e_c}")
+
+            # Verify Pin builder canvas is active
+            if not pin_builder_open and page.locator("input[type='file'], [data-test-id='pin-builder-title'], [data-test-id='pin-builder-description']").count() == 0:
+                log("Pin builder canvas not active — taking debug screenshot...")
+                try:
+                    page.screenshot(path=os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_builder_failed.png'))
+                except Exception:
+                    pass
+                result(False, error="Pinterest Pin Builder canvas failed to open — please verify login session.")
+                context.close()
+                return
 
             # ── Step 3: Upload image ───────────────────────────────────
             if not image_path or not os.path.exists(image_path):
