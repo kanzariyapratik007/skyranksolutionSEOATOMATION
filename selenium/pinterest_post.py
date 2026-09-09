@@ -74,6 +74,14 @@ def get_driver(email="default", proxy=None):
         except Exception as e_zip:
             log(f"Cookie restore error: {e_zip}")
 
+    # Clean up any leftover Chrome/Chromedriver processes on Linux
+    if sys.platform != "win32":
+        try:
+            os.system("pkill -9 -f chrome 2>/dev/null; pkill -9 -f chromedriver 2>/dev/null")
+            time.sleep(0.5)
+        except Exception:
+            pass
+
     # Clean up lock files from any previous crashed runs to prevent startup crash
     if os.path.exists(profile_dir):
         for root, dirs, files in os.walk(profile_dir):
@@ -205,6 +213,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     time.sleep(0.2)
                     email_field.send_keys(Keys.CONTROL + "a")
                     email_field.send_keys(Keys.BACKSPACE)
+                    try:
+                        email_field.send_keys(email)
+                    except Exception:
+                        pass
                     set_input_value(driver, email_field, email)
                     time.sleep(0.3)
 
@@ -225,6 +237,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     time.sleep(0.2)
                     pass_field.send_keys(Keys.CONTROL + "a")
                     pass_field.send_keys(Keys.BACKSPACE)
+                    try:
+                        pass_field.send_keys(password)
+                    except Exception:
+                        pass
                     set_input_value(driver, pass_field, password)
                     time.sleep(0.3)
 
