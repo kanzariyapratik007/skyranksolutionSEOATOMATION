@@ -168,10 +168,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             # Wait for email field (may show captcha/block)
             try:
                 # Wait for at least one email field to be present
-                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='email'], input#email, input[name='username']")))
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#email, input[name='id'], input[type='email'], input[name='username']")))
                 
                 # Find all potential email fields and choose the displayed one
-                email_fields = driver.find_elements(By.CSS_SELECTOR, "input[type='email'], input#email, input[name='username']")
+                email_fields = driver.find_elements(By.CSS_SELECTOR, "input#email, input[name='id'], input[type='email'], input[name='username']")
                 email_field = None
                 for ef in email_fields:
                     if ef.is_displayed():
@@ -182,13 +182,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
                 if email_field:
                     email_field.click()
-                    email_field.clear()
+                    time.sleep(0.2)
+                    email_field.send_keys(Keys.CONTROL + "a")
+                    email_field.send_keys(Keys.BACKSPACE)
                     set_input_value(driver, email_field, email)
                     email_field.send_keys(email)
                     time.sleep(0.5)
 
                 # Find all potential password fields and choose the displayed one
-                password_fields = driver.find_elements(By.CSS_SELECTOR, "input[type='password'], input#password, input[name='password']")
+                password_fields = driver.find_elements(By.CSS_SELECTOR, "input#password, input[name='password'], input[type='password']")
                 pass_field = None
                 for pf in password_fields:
                     if pf.is_displayed():
@@ -199,14 +201,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
                 if pass_field:
                     pass_field.click()
-                    pass_field.clear()
+                    time.sleep(0.2)
+                    pass_field.send_keys(Keys.CONTROL + "a")
+                    pass_field.send_keys(Keys.BACKSPACE)
                     set_input_value(driver, pass_field, password)
                     pass_field.send_keys(password)
                     time.sleep(0.5)
-                    pass_field.send_keys(Keys.ENTER)
 
                 # Find all potential submit buttons and choose the displayed one
-                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], button.red.SignupButton, button.red.LoginButton, [data-test-id='registerFormSubmitButton']")
+                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], [data-test-id='registerFormSubmitButton'] button, button.red.SignupButton, button.red.LoginButton")
                 submit_btn = None
                 for sb in submit_buttons:
                     if sb.is_displayed():
@@ -220,6 +223,9 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         driver.execute_script("arguments[0].click();", submit_btn)
                     except Exception:
                         submit_btn.click()
+                else:
+                    if pass_field:
+                        pass_field.send_keys(Keys.ENTER)
                 time.sleep(8)
             except Exception as e:
                 log(f"Login form error: {e}")
@@ -228,7 +234,9 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             driver.get("https://www.pinterest.com/pin-creation-tool/")
             time.sleep(5)
 
-            if "login" in driver.current_url.lower() or "signup" in driver.current_url.lower():
+            # Strict check: must have profile icon or pin builder canvas
+            is_authed = len(driver.find_elements(By.CSS_SELECTOR, "[data-test-id='header-profile'], [data-test-id='header-accounts-options-button'], input[type='file']")) > 0
+            if not is_authed and ("login" in driver.current_url.lower() or "signup" in driver.current_url.lower() or driver.current_url.strip("/") == "https://www.pinterest.com"):
                 try:
                     driver.save_screenshot(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pinterest_error.png'))
                     log("Saved login failure screenshot to pinterest_error.png")
@@ -238,7 +246,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     driver.quit()
                 except Exception:
                     pass
-                result(False, error="Pinterest login failed — please check email & password.")
+                result(False, error="Pinterest login failed — account not logged in or security prompt triggered.")
                 return
 
         log("Login OK!")
