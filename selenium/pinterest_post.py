@@ -35,7 +35,7 @@ def log(msg):
 def result(success, url='', error=''):
     print(json.dumps({"success": success, "url": url, "error": error}), flush=True)
 
-def get_driver(email="default"):
+def get_driver(email="default", proxy=None):
     opts = Options()
     if sys.platform != "win32":
         opts.add_argument('--headless=new')
@@ -48,10 +48,16 @@ def get_driver(email="default"):
     opts.add_experimental_option('excludeSwitches', ['enable-automation'])
     opts.add_experimental_option('useAutomationExtension', False)
     opts.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36')
-    opts.add_argument('--window-size=1400,900')
+    opts.add_argument('--window-size=1920,1080')
     opts.add_argument('--start-maximized')
     opts.add_argument('--disable-breakpad')
     opts.add_argument('--disable-crash-reporter')
+
+    proxy_url = proxy or os.environ.get('PINTEREST_PROXY')
+    if proxy_url:
+        log(f"Using proxy: {proxy_url}")
+        opts.add_argument(f'--proxy-server={proxy_url}')
+
     import hashlib, getpass
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
     profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}')
@@ -89,7 +95,21 @@ def get_driver(email="default"):
 
     try:
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
-            "source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+                window.chrome = { runtime: {} };
+                const originalQuery = window.navigator.permissions.query;
+                if (originalQuery) {
+                    window.navigator.permissions.query = (parameters) => (
+                        parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                    );
+                }
+            """
         })
     except Exception as e:
         pass
@@ -123,9 +143,9 @@ def js_set_value(driver, el, value):
 def set_input_value(driver, el, value):
     js_set_value(driver, el, value)
 
-def pinterest_post(email, password, keyword, target_site, image_path=None, ai_title="", ai_content=""):
+def pinterest_post(email, password, keyword, target_site, image_path=None, ai_title="", ai_content="", proxy=None):
     log(f"Starting Pinterest post with email: {email}")
-    driver = get_driver(email)
+    driver = get_driver(email, proxy=proxy)
     wait   = WebDriverWait(driver, 30)
 
     try:
@@ -613,11 +633,12 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
 if __name__ == "__main__":
     if len(sys.argv) < 5:
-        result(False, error="Usage: pinterest_post.py <email> <password> <keyword> <target_site> [image_path] [ai_title] [ai_content]")
+        result(False, error="Usage: pinterest_post.py <email> <password> <keyword> <target_site> [image_path] [ai_title] [ai_content] [proxy]")
         sys.exit(1)
     pinterest_post(
         sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4],
         sys.argv[5] if len(sys.argv) > 5 else None,
         sys.argv[6] if len(sys.argv) > 6 else "",
         sys.argv[7] if len(sys.argv) > 7 else "",
+        sys.argv[8] if len(sys.argv) > 8 else None,
     )

@@ -167,7 +167,7 @@ function decodePass(string $encoded): string {
 // ============================================================
 // PINTEREST — Selenium auto-post
 // ============================================================
-function seleniumPinterest(array $creds, string $keyword, string $targetSite, int $projectId = 0): array {
+function seleniumPinterest(array $creds, string $keyword, string $targetSite, int $projectId = 0, string $proxy = ''): array {
     $email    = $creds['username'] ?? '';
     $password = decodePass($creds['password'] ?? '');
 
@@ -255,6 +255,9 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
     else             $args[] = '';          // placeholder so argv indices stay stable
     $args[] = $aiTitle;
     $args[] = $aiDesc;
+    if (!empty($proxy)) {
+        $args[] = $proxy;
+    }
 
     $result = runSeleniumScript('pinterest_post.py', $args, 240);
 
