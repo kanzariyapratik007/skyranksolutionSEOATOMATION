@@ -356,7 +356,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     title_input.click(force=True)
                     title_input.fill("")
                     title_input.fill(title[:100])
-                    page.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", title_input.element_handle(), title[:100])
+                    title_input.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", title[:100])
                     log("Title OK!")
                 else:
                     log("Title input specific locator not found — trying focused title click...")
@@ -387,7 +387,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Filling description...")
             try:
                 desc_input = None
-                candidates = page.locator("[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, #storyboard-selector-description, [data-test-id='pin-draft-description'], textarea[id*='description'], textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], .public-DraftEditor-editor")
+                candidates = page.locator("[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, #storyboard-selector-description, [data-test-id='pin-draft-description'], textarea[id*='description'], textarea[placeholder*='description' i], textarea[placeholder*='Tell everyone' i], .public-DraftEditor-editor, [contenteditable='true']")
                 for idx in range(candidates.count()):
                     c = candidates.nth(idx)
                     if c.is_visible():
@@ -431,7 +431,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     link_input.click(force=True)
                     link_input.fill("")
                     link_input.fill(target_site)
-                    page.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", link_input.element_handle(), target_site)
+                    link_input.evaluate("(el, val) => { el.value = val; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }", target_site)
                     log("Link OK!")
                 else:
                     log("Link input specific locator not found — trying area click...")
