@@ -171,8 +171,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
     wait   = WebDriverWait(driver, 30)
 
     try:
-        # ── Step 1: Login ──────────────────────────────────────────
-        log("Checking logi        # Check if already logged in (has profile icon, feed, or _auth=1 cookie)
+        log("Checking login status...")
+        driver.get("https://www.pinterest.com/")
+        time.sleep(3)
+
+        # Check if already logged in (has profile icon, feed, or _auth=1 cookie)
         cookies = {c['name']: c['value'] for c in driver.get_cookies()}
         already_logged = (cookies.get('_auth') == '1' or
                           ("pinterest.com" in driver.current_url and
