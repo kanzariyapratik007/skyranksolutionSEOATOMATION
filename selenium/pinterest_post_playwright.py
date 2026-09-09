@@ -456,7 +456,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
                 if board_btn:
                     board_btn.click(force=True)
-                    page.wait_for_timeout(3000)
+                    page.wait_for_timeout(2000)
                     log("Board dropdown opened!")
                     
                     flyout = page.locator("[data-test-id='board-picker-flyout'], [role='listbox'], [data-test-id*='board-picker']")
@@ -468,11 +468,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                             my_post_row = None
                             for idx in range(row_count):
                                 r_txt = rows.nth(idx).inner_text().strip().lower()
-                                if "my post" in r_txt:
+                                if "my post" in r_txt or "saved" in r_txt:
                                     my_post_row = rows.nth(idx)
                                     break
                             if my_post_row:
-                                log("Found board 'MY POST' — selecting!")
+                                log("Found target board — selecting!")
                                 my_post_row.click(force=True)
                             else:
                                 first_row = rows.first
@@ -484,17 +484,25 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e:
                 log(f"Board select error: {e}")
                 
+            # Take debug screenshot before publishing
+            try:
+                page.screenshot(path=os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_before_publish.png'))
+            except Exception:
+                pass
+
             # ── Step 8: Publish ────────────────────────────────────────
             log("Publishing pin...")
             published = False
             for attempt in range(5):
                 try:
-                    pub_btns = page.locator("[data-test-id='pin-builder-publish-button'], [data-test-id='storyboard-creation-publish-button'], button[data-test-id*='publish'], button[data-test-id*='save'], [data-test-id='board-dropdown-save-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish'), div[role='button']:has-text('Save'), button[aria-label*='Publish' i], button[aria-label*='Save' i]")
+                    # Target top-right red publish/save button specifically
+                    pub_btns = page.locator("[data-test-id='board-dropdown-save-button'], [data-test-id='pin-builder-publish-button'], [data-test-id='storyboard-creation-publish-button'], button:has-text('Publish'), button:has-text('Save'), div[role='button']:has-text('Publish')")
                     for idx in range(pub_btns.count()):
                         pb = pub_btns.nth(idx)
                         if pb.is_visible():
+                            pb.scroll_into_view_if_needed()
                             pb.click(force=True)
-                            log("Published via Publish/Save button click!")
+                            log("Clicked top-right Red Publish/Save button!")
                             published = True
                             break
                     if published:
@@ -503,12 +511,20 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     log(f"Publish attempt {attempt+1}: {e}")
                 page.wait_for_timeout(2000)
                 
+            log("Waiting 10 seconds for Pinterest server to finalize publishing...")
+            page.wait_for_timeout(10000)
+
+            # Take debug screenshot after publishing
+            try:
+                page.screenshot(path=os.path.join(os.path.dirname(script_dir), 'uploads', 'pinterest_after_publish.png'))
+            except Exception:
+                pass
+
             # ── Step 9: Get Pin URL ────────────────────────────────────
-            log("Waiting for published Pin URL...")
-            page.wait_for_timeout(3000)
+            log("Checking for published Pin URL...")
             
             # 1. Check current URL if redirected to /pin/
-            for _ in range(8):
+            for _ in range(10):
                 cu = page.url
                 if "/pin/" in cu and "builder" not in cu and "creation" not in cu:
                     log(f"Captured Pin URL directly: {cu}")
