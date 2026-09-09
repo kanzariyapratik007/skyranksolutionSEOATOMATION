@@ -101,24 +101,42 @@ def get_driver(email="default", proxy=None):
     sys_chromedriver = shutil.which('chromedriver') or ('/usr/bin/chromedriver' if os.path.exists('/usr/bin/chromedriver') else None)
     
     driver = None
+    last_err = ""
     for attempt in range(3):
+        if sys.platform != "win32":
+            try:
+                os.system("pkill -9 -f chrome 2>/dev/null; pkill -9 -f chromedriver 2>/dev/null")
+                time.sleep(0.5)
+            except Exception:
+                pass
+        if os.path.exists(profile_dir):
+            for root, dirs, files in os.walk(profile_dir):
+                for f in files:
+                    if f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lock", "DevToolsActivePort"]:
+                        p = os.path.join(root, f)
+                        try:
+                            if os.path.islink(p):
+                                os.unlink(p)
+                            else:
+                                os.remove(p)
+                        except Exception:
+                            pass
         try:
             if sys_chromedriver:
                 service = Service(sys_chromedriver)
                 driver  = webdriver.Chrome(service=service, options=opts)
             else:
-                service = Service(ChromeDriverManager().install())
-                driver  = webdriver.Chrome(service=service, options=opts)
+                driver  = webdriver.Chrome(options=opts)
             if driver:
                 break
         except Exception as e_driver:
-            if attempt < 2:
-                time.sleep(1.5)
-            else:
-                try:
-                    driver = webdriver.Chrome(options=opts)
-                except Exception:
-                    pass
+            last_err = str(e_driver)
+            log(f"Chrome launch attempt {attempt+1} failed: {e_driver}")
+            time.sleep(2)
+
+    if not driver:
+        log(f"All Chrome launch attempts failed. Error: {last_err}")
+        return None
 
     try:
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
@@ -173,6 +191,9 @@ def set_input_value(driver, el, value):
 def pinterest_post(email, password, keyword, target_site, image_path=None, ai_title="", ai_content="", proxy=None):
     log(f"Starting Pinterest post with email: {email}")
     driver = get_driver(email, proxy=proxy)
+    if not driver:
+        result(False, error="Failed to launch Chrome driver on server")
+        return
     wait   = WebDriverWait(driver, 30)
 
     try:
