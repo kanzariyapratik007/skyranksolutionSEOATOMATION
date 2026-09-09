@@ -52,10 +52,9 @@ def get_driver(email="default"):
     opts.add_argument('--start-maximized')
     opts.add_argument('--disable-breakpad')
     opts.add_argument('--disable-crash-reporter')
-    import hashlib, getpass, tempfile
+    import hashlib, getpass
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
-    sys_user = getpass.getuser().lower()
-    profile_dir = os.path.join(tempfile.gettempdir(), f'chrome_profile_pinterest_{email_hash}_{sys_user}')
+    profile_dir = os.path.join(script_dir, f'chrome_profile_pinterest_{email_hash}')
     # Clean up lock files from any previous crashed runs to prevent startup crash
     if os.path.exists(profile_dir):
         for lock_name in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lock"]:
