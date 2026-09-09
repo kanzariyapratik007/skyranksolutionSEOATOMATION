@@ -23,7 +23,6 @@ fi
 echo "=== [3/4] Installing ChromeDriver & Python Dependencies ==="
 sudo apt-get install -y chromium-chromedriver || true
 
-python3 -m pip install --break-system-packages --upgrade pip
 python3 -m pip install --break-system-packages selenium webdriver-manager
 
 echo "=== [4/4] Verifying Setup ==="
