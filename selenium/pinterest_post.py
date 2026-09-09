@@ -101,19 +101,24 @@ def get_driver(email="default", proxy=None):
     sys_chromedriver = shutil.which('chromedriver') or ('/usr/bin/chromedriver' if os.path.exists('/usr/bin/chromedriver') else None)
     
     driver = None
-    if sys_chromedriver:
+    for attempt in range(3):
         try:
-            service = Service(sys_chromedriver)
-            driver  = webdriver.Chrome(service=service, options=opts)
-        except Exception as e_sys:
-            driver = None
-
-    if not driver:
-        try:
-            service = Service(ChromeDriverManager().install())
-            driver  = webdriver.Chrome(service=service, options=opts)
-        except Exception as e_cdm:
-            driver = webdriver.Chrome(options=opts)
+            if sys_chromedriver:
+                service = Service(sys_chromedriver)
+                driver  = webdriver.Chrome(service=service, options=opts)
+            else:
+                service = Service(ChromeDriverManager().install())
+                driver  = webdriver.Chrome(service=service, options=opts)
+            if driver:
+                break
+        except Exception as e_driver:
+            if attempt < 2:
+                time.sleep(1.5)
+            else:
+                try:
+                    driver = webdriver.Chrome(options=opts)
+                except Exception:
+                    pass
 
     try:
         driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
