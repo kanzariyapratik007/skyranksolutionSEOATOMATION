@@ -175,6 +175,16 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
         return ['error' => 'Pinterest: Add email + password in Social Accounts.'];
     }
 
+    if (empty($proxy)) {
+        if (!empty($creds['proxy'])) {
+            $proxy = $creds['proxy'];
+        } elseif (defined('PINTEREST_PROXY') && PINTEREST_PROXY) {
+            $proxy = PINTEREST_PROXY;
+        } elseif (getenv('PINTEREST_PROXY')) {
+            $proxy = getenv('PINTEREST_PROXY');
+        }
+    }
+
     // Generate AI title + description
     require_once dirname(__DIR__) . '/ai-content.php';
     $postCount  = 1;
