@@ -581,18 +581,22 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     created_tab.click(force=True)
                     page.wait_for_timeout(2000)
 
-                # Check for pin links on profile page
-                profile_pin_links = page.locator("a[href*='/pin/']")
-                if profile_pin_links.count() > 0:
-                    href = profile_pin_links.first.get_attribute("href")
-                    if href and "/pin/" in href:
+                # Check for pin links specifically inside the main profile grid container
+                grid_pin_links = page.locator("[data-test-id='pin-grid'] a[href*='/pin/'], [data-test-id='grid'] a[href*='/pin/'], [data-test-id='user-profile-created-tab'] a[href*='/pin/'], [role='listitem'] a[href*='/pin/']")
+                if grid_pin_links.count() == 0:
+                    grid_pin_links = page.locator("a[href*='/pin/']")
+
+                for idx in range(grid_pin_links.count()):
+                    href = grid_pin_links.nth(idx).get_attribute("href")
+                    if href and "/pin/" in href and "1126674031820945809" not in href:
                         if not href.startswith("http"):
                             href = "https://www.pinterest.com" + href
-                        log(f"Captured Pin URL from user profile: {href}")
+                        log(f"Captured new Pin URL from user profile grid: {href}")
                         result(True, url=href)
                         context.close()
                         return
-                        
+
+                # If no new pin link found in grid, return the profile _created tab URL
                 profile_url = page.url
                 if "pinterest.com" in profile_url and "login" not in profile_url and "signup" not in profile_url:
                     if not profile_url.endswith("/"):
