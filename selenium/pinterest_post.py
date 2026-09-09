@@ -233,11 +233,20 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         if image_path and os.path.exists(image_path):
             log("Uploading image...")
             try:
-                up = wait.until(EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, "input[data-test-id='storyboard-upload-input']")))
-                up.send_keys(os.path.abspath(image_path))
-                time.sleep(8)
-                log("Image uploaded!")
+                up = None
+                file_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+                if file_inputs:
+                    up = file_inputs[0]
+                else:
+                    try:
+                        up = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[data-test-id='storyboard-upload-input']")))
+                    except Exception:
+                        pass
+                if up:
+                    driver.execute_script("arguments[0].style.display='block'; arguments[0].style.opacity='1'; arguments[0].style.visibility='visible';", up)
+                    up.send_keys(os.path.abspath(image_path))
+                    time.sleep(6)
+                    log("Image uploaded!")
             except Exception as e:
                 log(f"Image upload: {e}")
 
@@ -245,15 +254,36 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
         log("Filling title...")
         try:
-            tf = wait.until(EC.presence_of_element_located((By.ID, "storyboard-selector-title")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tf)
-            time.sleep(0.5)
-            try:
-                tf.clear()
-                tf.send_keys(title[:100])
-            except Exception as e2:
-                js_set_value(driver, tf, title[:100])
-            log("Title OK!")
+            title_selectors = [
+                "[data-test-id='pin-builder-title'] input",
+                "[data-test-id='pin-builder-title'] textarea",
+                "#storyboard-selector-title",
+                "input[placeholder*='title' i]",
+                "textarea[placeholder*='title' i]",
+                "input[placeholder*='Add your title' i]"
+            ]
+            tf = None
+            for sel in title_selectors:
+                try:
+                    elems = driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems and elems[0].is_displayed():
+                        tf = elems[0]
+                        break
+                except Exception:
+                    continue
+            if tf:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tf)
+                time.sleep(0.3)
+                js_click(driver, tf)
+                time.sleep(0.2)
+                try:
+                    tf.clear()
+                    tf.send_keys(title[:100])
+                except Exception:
+                    driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", tf, title[:100])
+                log("Title OK!")
+            else:
+                log("Title element not found via selectors")
         except Exception as e:
             log(f"Title: {e}")
 
@@ -271,15 +301,18 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 f"Enroll now at {target_site} — Limited seats available! "
                 f"#{keyword.replace(' ','')} #Training #Bangalore #Career #Education #Certification"
             )
-        # Pinterest max 500 chars
         desc = desc[:500]
         log(f"Description length: {len(desc)} chars")
         log("Filling description...")
         try:
             desc_selectors = [
+                "[data-test-id='pin-builder-description'] [contenteditable='true']",
+                "[data-test-id='pin-builder-description'] textarea",
+                "#storyboard-selector-description",
+                "textarea[placeholder*='description' i]",
+                "textarea[placeholder*='Tell everyone' i]",
                 "[contenteditable='true']",
-                ".public-DraftEditor-editor",
-                "[data-test-id*='description']"
+                ".public-DraftEditor-editor"
             ]
             cd = None
             for sel in desc_selectors:
@@ -293,34 +326,31 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
             if cd:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", cd)
-                time.sleep(0.5)
+                time.sleep(0.3)
+                js_click(driver, cd)
+                time.sleep(0.2)
                 try:
-                    js_click(driver, cd)
-                    time.sleep(0.3)
-                    driver.execute_script("arguments[0].innerHTML = '';", cd)
                     cd.send_keys(desc)
-                except Exception as e2:
-                    driver.execute_script("arguments[0].innerHTML = arguments[1];", cd, desc)
-                    driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles: true}));", cd)
+                except Exception:
+                    driver.execute_script("arguments[0].innerHTML = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", cd, desc)
                 log("Description OK!")
             else:
-                log("Description element not found via any selectors")
+                log("Description element not found via selectors")
         except Exception as e:
             log(f"Desc: {e}")
 
         # ── Step 6: Link ───────────────────────────────────────────
         log("Filling link...")
         link_selectors = [
+            "[data-test-id='pin-builder-link'] input",
+            "[data-test-id='pin-builder-link'] textarea",
+            "#storyboard-selector-link",
             "input[name='link']",
             "input[id='WebsiteField']",
-            "input[placeholder*='link']",
-            "input[placeholder*='Link']",
-            "input[placeholder*='destination']",
-            "input[placeholder*='Destination']",
-            "[data-test-id*='link'] input",
-            "[data-test-id*='website'] input",
-            "[data-test-id*='link']",
-            "[data-test-id*='website']"
+            "input[placeholder*='link' i]",
+            "input[placeholder*='destination' i]",
+            "input[placeholder*='Add a link' i]",
+            "input[placeholder*='Website' i]"
         ]
         lf = None
         for sel in link_selectors:
@@ -328,21 +358,22 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 elements = driver.find_elements(By.CSS_SELECTOR, sel)
                 if elements and elements[0].is_displayed():
                     lf = elements[0]
-                    log(f"Found link field with selector: {sel}")
                     break
             except:
                 continue
         if lf:
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", lf)
-            time.sleep(0.5)
+            time.sleep(0.3)
+            js_click(driver, lf)
+            time.sleep(0.2)
             try:
                 lf.clear()
                 lf.send_keys(target_site)
-            except Exception as e2:
-                js_set_value(driver, lf, target_site)
+            except Exception:
+                driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", lf, target_site)
             log("Link OK!")
         else:
-            log("Link element not found via any selectors")
+            log("Link element not found via selectors")
 
         # ── Step 7: Board ──────────────────────────────────────────
         log("Opening board dropdown...")

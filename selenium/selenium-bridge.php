@@ -256,7 +256,7 @@ function seleniumPinterest(array $creds, string $keyword, string $targetSite, in
     $args[] = $aiTitle;
     $args[] = $aiDesc;
 
-    $result = runSeleniumScript('pinterest_post_playwright.py', $args, 240);
+    $result = runSeleniumScript('pinterest_post.py', $args, 240);
 
     if (!empty($result['success'])) {
         if (!empty($result['url']) && !empty($creds['id'])) {
