@@ -172,15 +172,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
     try:
         # ── Step 1: Login ──────────────────────────────────────────
-        log("Checking login status...")
-        driver.get("https://www.pinterest.com/")
-        time.sleep(4)
-
-        # Check if already logged in (has profile icon or feed)
-        already_logged = ("pinterest.com" in driver.current_url and
-                          "login" not in driver.current_url and
-                          len(driver.find_elements(By.CSS_SELECTOR,
-                              "[data-test-id='header-profile'], [data-test-id='header-accounts-options-button']")) > 0)
+        log("Checking logi        # Check if already logged in (has profile icon, feed, or _auth=1 cookie)
+        cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+        already_logged = (cookies.get('_auth') == '1' or
+                          ("pinterest.com" in driver.current_url and
+                           "login" not in driver.current_url and
+                           len(driver.find_elements(By.CSS_SELECTOR,
+                               "[data-test-id='header-profile'], [data-test-id='header-accounts-options-button']")) > 0))
 
         if not already_logged:
             log(f"Not logged in (URL: {driver.current_url}) — logging in...")
@@ -270,22 +268,21 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log("Waiting for authentication redirect...")
                 for wait_i in range(15):
                     time.sleep(1)
+                    curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+                    if curr_cookies.get('_auth') == '1':
+                        log(f"Login successful! (_auth cookie set). Current URL: {driver.current_url}")
+                        break
                     curr = driver.current_url.lower()
-                    if "login" not in curr and "signup" not in curr and "pinterest.com" in curr and curr.strip("/") != "https://www.pinterest.com":
+                    if "login" not in curr and "signup" not in curr:
                         log(f"Login redirect detected! Current URL: {driver.current_url}")
                         break
             except Exception as e:
                 log(f"Login form error: {e}")
 
-            # Verify if logged in by navigating to pin creation tool directly
-            log(f"Post-login redirecting to pin creation tool... Current URL: {driver.current_url}")
-            driver.get("https://www.pinterest.com/pin-creation-tool/")
-            time.sleep(5)
-            log(f"Pin creation tool loaded. URL: {driver.current_url}")
-
-            # Strict check: must have profile icon or pin builder canvas
-            is_authed = len(driver.find_elements(By.CSS_SELECTOR, "[data-test-id='header-profile'], [data-test-id='header-accounts-options-button'], input[type='file']")) > 0
-            if not is_authed and ("login" in driver.current_url.lower() or "signup" in driver.current_url.lower() or driver.current_url.strip("/") == "https://www.pinterest.com"):
+            # Verify if logged in
+            curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+            is_authed = curr_cookies.get('_auth') == '1' or "login" not in driver.current_url.lower()
+            if not is_authed:
                 try:
                     page_text = driver.find_element(By.TAG_NAME, "body").text[:300].replace("\n", " ")
                     log(f"Page text sample: {page_text}")
