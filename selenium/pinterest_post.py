@@ -318,9 +318,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
             is_authed = curr_cookies.get('_auth') == '1' or "login" not in driver.current_url.lower()
             if not is_authed:
+                err_text = f"Pinterest login failed on AWS — URL: {driver.current_url}"
                 try:
-                    page_text = driver.find_element(By.TAG_NAME, "body").text[:300].replace("\n", " ")
-                    log(f"Page text sample: {page_text}")
+                    page_text = driver.find_element(By.TAG_NAME, "body").text
+                    log(f"Page text sample: {page_text[:300].replace('\n', ' ')}")
+                    if "strange activity" in page_text.lower() or "reset your password" in page_text.lower():
+                        err_text = "Pinterest Account Security Lock: 'We noticed some strange activity on your account. Please reset your password on Pinterest.'"
+                    elif "incorrect" in page_text.lower() or "invalid" in page_text.lower():
+                        err_text = "Pinterest Login Failed: Incorrect password or email for this account."
                 except Exception:
                     pass
                 try:
@@ -332,7 +337,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     driver.quit()
                 except Exception:
                     pass
-                result(False, error=f"Pinterest login failed on AWS — URL: {driver.current_url}")
+                result(False, error=err_text)
                 return
 
         log("Login OK!")
