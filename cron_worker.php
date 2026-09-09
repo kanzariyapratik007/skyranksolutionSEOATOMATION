@@ -9,6 +9,12 @@ require_once __DIR__ . '/auto-poster.php';
 
 // Process Lockfile Mutex: Prevent concurrent executions of cron_worker.php
 $lockFile = __DIR__ . '/logs/cron_worker.lock';
+
+// Auto-remove stale lockfile if older than 5 minutes
+if (file_exists($lockFile) && (time() - filemtime($lockFile)) > 300) {
+    @unlink($lockFile);
+}
+
 $lockFp   = @fopen($lockFile, 'c+');
 if ($lockFp && !flock($lockFp, LOCK_EX | LOCK_NB)) {
     echo "Another instance of cron_worker.php is currently running. Exiting.\n";
@@ -22,15 +28,16 @@ $stmt->execute();
 $running = (int)$stmt->fetchColumn();
 
 if ($running > 0) {
-    // Timeout check: if a task is stuck in 'processing' status for more than 3 minutes, mark as failed
-    $timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'failed', error_message = 'Timeout: Process hung or was terminated by the OS.' WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 3 MINUTE");
+    // Timeout check: if a task is stuck in 'processing' status for more than 2.5 minutes, auto-reset it to pending and resume
+    $timeoutStmt = $db->prepare("UPDATE backlink_queue SET status = 'pending', error_message = NULL WHERE status = 'processing' AND updated_at < NOW() - INTERVAL 150 SECOND");
     $timeoutStmt->execute();
     if ($timeoutStmt->rowCount() > 0) {
         @exec("php " . __DIR__ . "/cleanup_zombies.php > /dev/null 2>&1 &");
+        echo "Stuck processing task auto-reset to pending. Resuming queue execution.\n";
+    } else {
+        echo "A task is already processing. Exiting to avoid concurrency.\n";
+        exit;
     }
-    
-    echo "A task is already processing. Exiting to avoid concurrency.\n";
-    exit;
 }
 
 // Automatically clean up stale locks and zombie processes before starting a new batch
