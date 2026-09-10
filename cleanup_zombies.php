@@ -17,7 +17,7 @@ if (is_dir($seleniumDir)) {
     try {
         $dirItr = new RecursiveDirectoryIterator(
             $seleniumDir,
-            RecursiveDirectoryIterator::SKIP_DOTS | RecursiveDirectoryIterator::CATCH_GET_CHILD
+            FilesystemIterator::SKIP_DOTS
         );
         $files = new RecursiveIteratorIterator($dirItr, RecursiveIteratorIterator::CHILD_FIRST);
 
