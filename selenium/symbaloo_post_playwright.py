@@ -96,33 +96,53 @@ def symbaloo_post(email, password, keyword, target_url, custom_mix_url="", ai_de
     log(f"Starting Playwright Symbaloo post for: {email}")
     import hashlib
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest()
-    profile_dir = os.path.join(script_dir, f'chrome_profile_symbaloo_{email_hash}')
+    profile_base = '/tmp' if sys.platform != 'win32' else script_dir
+    profile_dir = os.path.join(profile_base, f'chrome_profile_symbaloo_{email_hash}')
+    os.makedirs(profile_dir, mode=0o777, exist_ok=True)
     
     # Clean locks
     if os.path.exists(profile_dir):
-        for lf in [os.path.join(profile_dir,'Default','LOCK'), os.path.join(profile_dir,'SingletonLock')]:
-            try:
-                if os.path.exists(lf): os.remove(lf)
-            except Exception: pass
+        for root, dirs, files in os.walk(profile_dir):
+            for f in files:
+                if f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK", "lock", "DevToolsActivePort"]:
+                    p_file = os.path.join(root, f)
+                    try:
+                        if os.path.islink(p_file): os.unlink(p_file)
+                        else: os.remove(p_file)
+                    except Exception: pass
 
     from playwright.sync_api import sync_playwright
     
     with sync_playwright() as p:
         try:
-            context = p.chromium.launch_persistent_context(
-                profile_dir,
-                headless=True,
-                viewport={"width": 1280, "height": 800},
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-software-rasterizer",
-                    "--disable-blink-features=AutomationControlled"
-                ],
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            )
+            launch_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-blink-features=AutomationControlled"
+            ]
+            context = None
+            try:
+                context = p.chromium.launch_persistent_context(
+                    profile_dir,
+                    headless=True,
+                    viewport={"width": 1280, "height": 800},
+                    args=launch_args,
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
+            except Exception as e_ctx:
+                log(f"Symbaloo: Profile launch failed ({e_ctx}), trying fresh temp profile...")
+                import tempfile
+                fb_dir = tempfile.mkdtemp(prefix="symbaloo_fb_")
+                context = p.chromium.launch_persistent_context(
+                    fb_dir,
+                    headless=True,
+                    viewport={"width": 1280, "height": 800},
+                    args=launch_args,
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
             
             page = context.pages[0] if context.pages else context.new_page()
             

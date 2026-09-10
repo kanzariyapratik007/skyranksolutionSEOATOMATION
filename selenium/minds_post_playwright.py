@@ -23,32 +23,49 @@ def result(success, url='', error=''):
 
 def minds_post(email, password, keyword, target_url, ai_title="", ai_content=""):
     email_hash = hashlib.md5(email.lower().encode('utf-8')).hexdigest() if email else 'default'
-    profile_dir = os.path.join(script_dir, f'chrome_profile_minds_{email_hash}_{sys_user}')
+    profile_base = '/tmp' if sys.platform != 'win32' else script_dir
+    profile_dir = os.path.join(profile_base, f'chrome_profile_minds_{email_hash}_{sys_user}')
+    os.makedirs(profile_dir, mode=0o777, exist_ok=True)
     
     # Remove locks
-    for lock in ['SingletonLock', 'LOCK']:
-        lock_path = os.path.join(profile_dir, lock)
-        if os.path.exists(lock_path):
-            try:
-                os.remove(lock_path)
-            except:
-                pass
+    if os.path.exists(profile_dir):
+        for root, dirs, files in os.walk(profile_dir):
+            for f in files:
+                if f in ["SingletonLock", "SingletonCookie", "SingletonSocket", "LOCK", "lock", "DevToolsActivePort"]:
+                    p_file = os.path.join(root, f)
+                    try:
+                        if os.path.islink(p_file): os.unlink(p_file)
+                        else: os.remove(p_file)
+                    except Exception: pass
 
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
         try:
             log("Launching browser context...")
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=profile_dir,
-                headless=True,
-                no_viewport=True,
-                args=[
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-blink-features=AutomationControlled'
-                ]
-            )
+            launch_args = [
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled'
+            ]
+            context = None
+            try:
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=profile_dir,
+                    headless=True,
+                    no_viewport=True,
+                    args=launch_args
+                )
+            except Exception as e_ctx:
+                log(f"Minds: Profile launch failed ({e_ctx}), trying fresh temp profile...")
+                import tempfile
+                fb_dir = tempfile.mkdtemp(prefix="minds_fb_")
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=fb_dir,
+                    headless=True,
+                    no_viewport=True,
+                    args=launch_args
+                )
             
             page = context.pages[0] if context.pages else context.new_page()
             page.set_viewport_size({"width": 1400, "height": 900})
