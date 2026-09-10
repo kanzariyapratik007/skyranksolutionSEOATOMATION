@@ -12,8 +12,9 @@ sudo apt-get install -y wget curl unzip gnupg xvfb python3-pip python3-venv
 
 echo "=== [2/4] Installing Google Chrome ==="
 if ! command -v google-chrome &> /dev/null; then
-    wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg --yes
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
     sudo apt-get update -y
     sudo apt-get install -y google-chrome-stable
 else
