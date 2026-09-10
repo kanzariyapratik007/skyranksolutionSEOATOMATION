@@ -20,10 +20,12 @@ else
     echo "Google Chrome is already installed."
 fi
 
-echo "=== [3/4] Installing ChromeDriver & Python Dependencies ==="
+echo "=== [3/4] Installing ChromeDriver, Playwright & Python Dependencies ==="
 sudo apt-get install -y chromium-chromedriver || true
 
-python3 -m pip install --break-system-packages selenium webdriver-manager
+python3 -m pip install --break-system-packages selenium playwright webdriver-manager
+sudo PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright python3 -m playwright install chromium
+sudo PLAYWRIGHT_BROWSERS_PATH=/usr/local/share/playwright python3 -m playwright install-deps chromium || true
 
 echo "=== [4/4] Verifying Setup ==="
 echo -n "Chrome version: " && google-chrome --version
@@ -31,5 +33,5 @@ echo -n "ChromeDriver path: " && which chromedriver || echo "/usr/bin/chromedriv
 echo -n "Xvfb path: " && which xvfb-run
 
 echo ""
-echo "✅ AWS Selenium Setup Complete!"
-echo "Your server can now execute background Pinterest browser automation stealthily via Xvfb virtual screen."
+echo "✅ AWS Selenium & Playwright Setup Complete!"
+echo "Your server can now execute background Pinterest, Minds, and Symbaloo browser automation stealthily via Xvfb virtual screen."
