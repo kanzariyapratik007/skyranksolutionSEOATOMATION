@@ -75,12 +75,12 @@ function isSeleniumPlatform($platform, $creds = []) {
     return false; // Runs via API (fast)
 }
 
-// Get the batch limits (maximum 15 API tasks and 1 Selenium task per execution)
-$maxApiTasks = 15;
+// Get the batch limits (maximum 30 API tasks and 1 Selenium task per execution)
+$maxApiTasks = 30;
 $maxSeleniumTasks = 1;
 
 // Get a larger pool of oldest pending tasks to filter
-$stmt = $db->prepare("SELECT * FROM backlink_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 30");
+$stmt = $db->prepare("SELECT * FROM backlink_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 50");
 $stmt->execute();
 $pendingPool = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
