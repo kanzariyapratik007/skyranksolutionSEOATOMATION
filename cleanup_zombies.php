@@ -47,6 +47,13 @@ if (is_dir($seleniumDir)) {
     if ($profilesCleaned > 0) {
         echo "Cleaned up {$profilesCleaned} old chrome_profile directories in {$seleniumDir}\n";
     }
+
+    // Clean up temporary files in /tmp directory to prevent "Less than 64MB of free space in temporary directory" error
+    @exec("find /tmp -maxdepth 2 -name 'chrome_profile_*' -mmin +60 -exec rm -rf {} + 2>/dev/null");
+    @exec("find /tmp -maxdepth 2 -name 'chrome_fb_*' -mmin +60 -exec rm -rf {} + 2>/dev/null");
+    @exec("find /tmp -maxdepth 2 -name 'playwright_*' -mmin +60 -exec rm -rf {} + 2>/dev/null");
+    @exec("find /tmp -maxdepth 2 -name '.com.google.Chrome*' -mmin +60 -exec rm -rf {} + 2>/dev/null");
+
     echo "Cleaned up {$cleanedCount} stale lock files in {$seleniumDir}\n";
 }
 
