@@ -38,7 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
 
 // Handle AJAX Local Agent payload request
 if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
+    while (ob_get_level()) ob_end_clean();
+    ini_set('display_errors', '0');
     header('Content-Type: application/json');
+    
     $pId = (int)($_GET['project_id'] ?? 0);
     $platform = clean($_GET['platform'] ?? 'pinterest');
     $keyword = !empty($_GET['keyword']) ? clean($_GET['keyword']) : '';
@@ -67,18 +70,27 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
     $pass  = decodePass($creds['password'] ?? '');
 
     // Generate AI Title & Description
-    require_once 'ai-content.php';
-    $aiTitle = generateAITitle($keyword);
-    $aiDesc  = generateAIDescription($keyword, $targetSite);
+    $aiTitle = "Best " . $keyword . " - 2026 Guide";
+    $aiDesc  = "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
+    
+    try {
+        require_once 'ai-content.php';
+        $genTitle = generateAITitle($keyword);
+        $genDesc  = generateAIDescription($keyword, $targetSite);
+        if (!empty($genTitle)) $aiTitle = $genTitle;
+        if (!empty($genDesc)) $aiDesc = $genDesc;
+    } catch (Throwable $e) {}
 
     // Marketing image if available
-    require_once 'image-generator.php';
-    $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
-    $phone = $creds['phone'] ?? '9036354554';
-    $imgEmail = $email ?: 'office.learnmore@gmail.com';
-    $res = generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
-    
     $imageUrl = '';
+    $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
+    try {
+        require_once 'image-generator.php';
+        $phone = $creds['phone'] ?? '9036354554';
+        $imgEmail = $email ?: 'office.learnmore@gmail.com';
+        generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
+    } catch (Throwable $e) {}
+
     if (file_exists($verticalImg)) {
         $imageUrl = SITE_URL . "/uploads/project_{$pId}_vertical.jpg";
     }
@@ -2590,8 +2602,14 @@ function runLocalAgentPost(platformId, platformName, projectId) {
 
   // Step 1: Get payload from AWS DB
   fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${projectId}&keyword=${kw}&target_site=${siteUrl}`)
-    .then(r => r.json())
-    .then(data => {
+    .then(r => r.text())
+    .then(text => {
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch(e) {
+        throw new Error('Server JSON error: ' + text.slice(0, 150));
+      }
       if (!data.success) {
         throw new Error(data.error || 'Failed to fetch credentials from DB');
       }
@@ -2612,7 +2630,17 @@ function runLocalAgentPost(platformId, platformName, projectId) {
           ai_title: data.ai_title,
           ai_desc: data.ai_desc
         })
-      }).then(r => r.json()).then(result => ({ result, payload: data }));
+      })
+      .then(r => r.text())
+      .then(text => {
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch(e) {
+          throw new Error('Local Agent response error: ' + text.slice(0, 150));
+        }
+        return { result, payload: data };
+      });
     })
     .then(({ result, payload }) => {
       if (result.success) {
