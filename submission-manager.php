@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
         $fileTmp = $_FILES['post_image']['tmp_name'];
         $fileName = $_FILES['post_image']['name'];
         $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
             $uploadsDir = __DIR__ . '/uploads';
             if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0777, true);
 
@@ -61,13 +61,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
             $newFileName = "project_{$pId}_" . time() . ".{$ext}";
             $targetPath = $uploadsDir . '/' . $newFileName;
             if (move_uploaded_file($fileTmp, $targetPath)) {
+                @chmod($targetPath, 0666);
                 // 3. Update database post_image column immediately
                 $upd = $db->prepare("UPDATE projects SET post_image = ? WHERE id = ?");
                 $upd->execute([$newFileName, $pId]);
             }
         }
     }
-    header("Location: submission-manager.php?project_id={$pId}");
+    $kw = !empty($_POST['keyword']) ? '&keyword=' . urlencode($_POST['keyword']) : '';
+    $site = !empty($_POST['target_site']) ? '&target_site=' . urlencode($_POST['target_site']) : '';
+    header("Location: submission-manager.php?project_id={$pId}{$kw}{$site}");
     exit;
 }
 
@@ -750,28 +753,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_logo'])) {
     header('Location: submission-manager.php?project_id=' . $projectId . $kwParam . $siteParam); exit;
 }
 
-// Handle image upload for project
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
-    $projectId = (int)$_POST['project_id'];
-    if (isset($_FILES['post_image']) && $_FILES['post_image']['error'] === 0) {
-        $uploadDir = __DIR__ . '/uploads/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        $ext      = strtolower(pathinfo($_FILES['post_image']['name'], PATHINFO_EXTENSION));
-        $allowed  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        if (in_array($ext, $allowed)) {
-            $filename = 'project_' . $projectId . '_' . time() . '.' . $ext;
-            move_uploaded_file($_FILES['post_image']['tmp_name'], $uploadDir . $filename);
-            $db->prepare("UPDATE projects SET post_image=? WHERE id=?")
-               ->execute([$filename, $projectId]);
-            setFlash('success', 'Image uploaded! System will use this image for all posts.');
-        } else {
-            setFlash('danger', 'Invalid file type. Use JPG, PNG, GIF or WebP.');
-        }
-    }
-    $kwParam = !empty($_POST['keyword']) ? '&keyword=' . urlencode($_POST['keyword']) : '';
-    $siteParam = !empty($_POST['target_site']) ? '&target_site=' . urlencode($_POST['target_site']) : '';
-    header('Location: submission-manager.php?project_id=' . $projectId . $kwParam . $siteParam); exit;
-}
+
 
 // Fetch all projects for this user
 $projects = $db->prepare("SELECT * FROM projects WHERE user_id=? ORDER BY created_at DESC");
@@ -1755,15 +1737,16 @@ wordpress,myblog.wordpress.com,oauth_token_here</pre>
       <div class="row align-items-center">
         <div class="col-md-3 text-center">
           <?php if ($imageUrl): ?>
-            <img src="<?= $imageUrl ?>" class="img-thumbnail" style="max-height:120px;" id="previewImg" alt="Post Image">
+            <img src="<?= $imageUrl ?>?t=<?= time() ?>" class="img-thumbnail" style="max-height:120px;" id="previewImg" alt="Post Image">
             <p class="small text-success mt-1"><i class="fas fa-check-circle"></i> Image ready</p>
             <button class="btn btn-sm btn-warning mt-1 w-100" onclick="addLogoToImage(<?= $selectedProjectId ?>, this)">
               <i class="fas fa-trademark me-1"></i>Add Logo to Image
             </button>
           <?php else: ?>
-            <div class="border rounded p-3 text-muted text-center">
-              <i class="fas fa-image fa-3x mb-2"></i><br>
-              <small>No image uploaded</small>
+            <div class="border rounded p-3 text-muted text-center" id="noImgContainer">
+              <img src="" class="img-thumbnail d-none" style="max-height:120px;" id="previewImg" alt="Post Image">
+              <i class="fas fa-image fa-3x mb-2" id="noImgIcon"></i><br>
+              <small id="noImgText">No image uploaded</small>
             </div>
           <?php endif; ?>
         </div>
@@ -1775,7 +1758,7 @@ wordpress,myblog.wordpress.com,oauth_token_here</pre>
             <input type="hidden" name="target_site" value="<?= htmlspecialchars($currentTargetSite) ?>">
             <label class="form-label fw-bold">Upload your own image OR auto-generate below</label>
             <div class="input-group mb-2">
-              <input type="file" name="post_image" class="form-control" accept="image/*">
+              <input type="file" name="post_image" class="form-control" accept="image/*" onchange="previewSelectedFile(this)" required>
               <button type="submit" class="btn btn-warning">
                 <i class="fas fa-upload me-1"></i>Upload
               </button>
@@ -2566,6 +2549,21 @@ function editCredForm(acc, platformId, platformName, projectId) {
     } else {
       apiSecretInput.value = acc.api_secret || '';
     }
+  }
+}
+
+function previewSelectedFile(input) {
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    const preview = document.getElementById('previewImg');
+    const noImgIcon = document.getElementById('noImgIcon');
+    const noImgText = document.getElementById('noImgText');
+    if (preview) {
+      preview.src = URL.createObjectURL(file);
+      preview.classList.remove('d-none');
+    }
+    if (noImgIcon) noImgIcon.classList.add('d-none');
+    if (noImgText) noImgText.innerText = file.name + ' (Selected - click Upload to save)';
   }
 }
 
