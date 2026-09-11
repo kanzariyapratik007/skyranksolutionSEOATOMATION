@@ -127,6 +127,8 @@ class AgentHandler(BaseHTTPRequestHandler):
                 image_path or "", ai_title or "", ai_content or ""
             ]
 
+            is_form = 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', '')
+
             try:
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 stdout = proc.stdout or ""
@@ -144,13 +146,47 @@ class AgentHandler(BaseHTTPRequestHandler):
                 else:
                     res_data = {"success": False, "error": f"Process exited without result JSON. Stderr: {stderr[:200]}"}
 
-                self._send_json_response(200, res_data)
+                if is_form:
+                    html_body = f"""<!DOCTYPE html><html><body><script>
+                    if (window.parent && window.parent.onLocalAgentPinResult) {{
+                        window.parent.onLocalAgentPinResult({json.dumps(res_data)});
+                    }}
+                    </script></body></html>""".encode('utf-8')
+                    self.send_response(200)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'text/html')
+                    self.send_header('Content-Length', str(len(html_body)))
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.wfile.write(html_body)
+                else:
+                    self._send_json_response(200, res_data)
 
             except subprocess.TimeoutExpired:
-                self._send_json_response(504, {"success": False, "error": "Execution timed out after 300 seconds"})
+                err_payload = {"success": False, "error": "Execution timed out after 300 seconds"}
+                if is_form:
+                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_payload)});}}</script></body></html>".encode('utf-8')
+                    self.send_response(504)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'text/html')
+                    self.send_header('Content-Length', str(len(html_body)))
+                    self.end_headers()
+                    self.wfile.write(html_body)
+                else:
+                    self._send_json_response(504, err_payload)
 
             except Exception as e:
-                self._send_json_response(500, {"success": False, "error": str(e)})
+                err_payload = {"success": False, "error": str(e)}
+                if is_form:
+                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_payload)});}}</script></body></html>".encode('utf-8')
+                    self.send_response(500)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'text/html')
+                    self.send_header('Content-Length', str(len(html_body)))
+                    self.end_headers()
+                    self.wfile.write(html_body)
+                else:
+                    self._send_json_response(500, err_payload)
         else:
             self.send_response(404)
             self.send_header('Content-Length', '0')

@@ -2645,68 +2645,71 @@ function runLocalAgentPost(platformId, platformName, projectId) {
       document.getElementById('postingStatus').innerHTML = `🤖 Opening Chrome on your PC...`;
       document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Running Selenium on your PC for account <strong>${data.email}</strong>... Please do not close Chrome.`;
 
-      // Step 2: Post via Local PC Agent (with localhost fallback)
-      const postPackage = JSON.stringify({
-        email: data.email,
-        password: data.password,
-        keyword: data.keyword,
-        target_site: data.target_site,
-        image_url: data.image_url,
-        ai_title: data.ai_title,
-        ai_desc: data.ai_desc
-      });
+      // Step 2: Post via Form Submit to Hidden Iframe (100% exempted from Chrome PNA blocks!)
+      window.onLocalAgentPinResult = function(result) {
+        if (result && result.success) {
+          document.getElementById('postingStatus').innerHTML = `✅ Successfully Posted to ${platformName}!`;
+          document.getElementById('postingDetail').innerHTML = `<strong>Pin Created:</strong> <a href="${result.url}" target="_blank" class="fw-bold">${result.url}</a><br><span class="text-success mt-1 d-inline-block"><i class="fas fa-check-circle me-1"></i>Saved to AWS Database Reports!</span>`;
 
-      const tryAgentPost = (url) => {
-        return fetch(`${url}/run_pin`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: postPackage
-        }).then(r => r.text());
+          const fd = new FormData();
+          fd.append('project_id', curProjId);
+          fd.append('platform', platformId);
+          fd.append('url', result.url);
+          fd.append('post_title', data.ai_title);
+          fd.append('keyword', data.keyword);
+          fd.append('target_site', data.target_site);
+
+          fetch('submission-manager.php?action=save_local_backlink', {
+            method: 'POST',
+            body: fd
+          }).then(() => refreshBacklinkTables());
+
+          setTimeout(() => { modal.hide(); }, 4000);
+        } else {
+          document.getElementById('postingStatus').innerHTML = `❌ Posting Failed`;
+          document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${(result ? result.error : 'Execution failed on PC')}</div>`;
+        }
       };
 
-      return tryAgentPost('http://127.0.0.1:8989')
-        .catch(() => tryAgentPost('http://localhost:8989'))
-        .then(text => {
-          let result;
-          try {
-            result = JSON.parse(text);
-          } catch(e) {
-            throw new Error('Local Agent response error: ' + (text ? text.slice(0, 150) : 'Empty local response'));
-          }
-          return { result, payload: data };
-        });
-    })
-    .then(({ result, payload }) => {
-      if (result.success) {
-        document.getElementById('postingStatus').innerHTML = `✅ Successfully Posted to ${platformName}!`;
-        document.getElementById('postingDetail').innerHTML = `<strong>Pin Created:</strong> <a href="${result.url}" target="_blank" class="fw-bold">${result.url}</a><br><span class="text-success mt-1 d-inline-block"><i class="fas fa-check-circle me-1"></i>Saved to AWS Database Reports!</span>`;
-
-        // Step 3: Save created backlink to AWS DB
-        const fd = new FormData();
-        fd.append('project_id', projectId);
-        fd.append('platform', platformId);
-        fd.append('url', result.url);
-        fd.append('post_title', payload.ai_title);
-        fd.append('keyword', payload.keyword);
-        fd.append('target_site', payload.target_site);
-
-        fetch('submission-manager.php?action=save_local_backlink', {
-          method: 'POST',
-          body: fd
-        }).then(() => refreshBacklinkTables());
-
-        setTimeout(() => {
-          modal.hide();
-        }, 4000);
-      } else {
-        document.getElementById('postingStatus').innerHTML = `❌ Posting Failed`;
-        document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${result.error || 'Execution failed on PC'}</div>`;
-      }
+      postViaAgentForm(data);
     })
     .catch(err => {
       document.getElementById('postingStatus').innerHTML = `⚠️ Local Post Error`;
       document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${err.message}</div>`;
     });
+}
+
+function postViaAgentForm(payload) {
+  let iframe = document.getElementById('agentHiddenIframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'agentHiddenIframe';
+    iframe.name = 'agentHiddenIframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  let form = document.getElementById('agentHiddenForm');
+  if (form) form.remove();
+
+  form = document.createElement('form');
+  form.id = 'agentHiddenForm';
+  form.target = 'agentHiddenIframe';
+  form.method = 'POST';
+  form.action = 'http://127.0.0.1:8989/run_pin';
+
+  for (const key in payload) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = payload[key];
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+  console.log('[SkyRank Bridge] Submitted payload via Form to PC Agent!');
+}
 }
 
 function autoPost(platformId, platformName, projectId) {
