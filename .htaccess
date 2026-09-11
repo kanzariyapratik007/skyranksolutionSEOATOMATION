@@ -23,9 +23,19 @@ RewriteEngine On
 </IfModule>
 
 # PHP settings
+<IfModule mod_php.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 64M
+    php_value memory_limit 256M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 64M
+    php_value memory_limit 256M
+</IfModule>
 <IfModule mod_php8.c>
-    php_value upload_max_filesize 10M
-    php_value post_max_size 10M
+    php_value upload_max_filesize 64M
+    php_value post_max_size 64M
     php_value max_execution_time 120
     php_value memory_limit 256M
 </IfModule>
