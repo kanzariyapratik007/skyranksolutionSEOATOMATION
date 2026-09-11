@@ -2792,7 +2792,6 @@ function submitHiddenForm(targetUrl, payload) {
   form.submit();
   console.log('[SkyRank Bridge] Submitted payload via Form to target:', targetUrl);
 }
-}
 
 function autoPost(platformId, platformName, projectId) {
   autoPostAll(platformId, platformName, projectId);
