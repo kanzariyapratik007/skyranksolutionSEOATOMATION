@@ -58,8 +58,7 @@ def get_driver(email="default", proxy=None):
     opts.add_argument('--disable-dev-shm-usage')
     opts.add_argument('--disable-gpu')
     opts.add_argument('--disable-software-rasterizer')
-    opts.add_argument('--renderer-process-limit=1')
-    opts.add_argument('--js-flags=--max-old-space-size=256')
+    opts.add_argument('--js-flags=--max-old-space-size=512')
     opts.add_argument('--disk-cache-size=1')
     opts.add_argument('--media-cache-size=1')
     opts.add_argument('--disable-site-isolation-trials')
@@ -443,7 +442,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 if up:
                     driver.execute_script("arguments[0].style.display='block'; arguments[0].style.opacity='1'; arguments[0].style.visibility='visible';", up)
                     up.send_keys(os.path.abspath(real_image_path))
-                    time.sleep(3)
+                    time.sleep(6)
                     log("Image uploaded!")
                     image_uploaded = True
             except Exception as e:
@@ -455,33 +454,37 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         title = ai_title if ai_title else f"Best {keyword.title()} - {time.strftime('%Y')} Guide"
         log("Filling title...")
         try:
-            title_selectors = [
-                "[data-test-id='pin-builder-title'] input",
-                "[data-test-id='pin-builder-title'] textarea",
-                "#storyboard-selector-title",
-                "input[placeholder*='title' i]",
-                "textarea[placeholder*='title' i]",
-                "input[placeholder*='Add your title' i]"
-            ]
-            tf = None
-            for sel in title_selectors:
-                try:
-                    elems = driver.find_elements(By.CSS_SELECTOR, sel)
-                    if elems and elems[0].is_displayed():
-                        tf = elems[0]
-                        break
-                except Exception:
-                    continue
-            if tf:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tf)
-                time.sleep(0.3)
-                js_click(driver, tf)
-                time.sleep(0.2)
-                try:
-                    tf.clear()
-                    tf.send_keys(title[:100])
-                except Exception:
-                    driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", tf, title[:100])
+            title_filled = driver.execute_script("""
+                var val = arguments[0];
+                var sel = "[data-test-id='pin-builder-title'] input, [data-test-id='pin-builder-title'] textarea, #storyboard-selector-title, [data-test-id='storyboard-selector-title']";
+                var el = document.querySelector(sel);
+                if (!el) {
+                    var inps = Array.from(document.querySelectorAll('input, textarea'));
+                    el = inps.find(function(i) {
+                        var ph = (i.getAttribute('placeholder') || '').toLowerCase();
+                        var id = (i.getAttribute('id') || '').toLowerCase();
+                        var name = (i.getAttribute('name') || '').toLowerCase();
+                        var aria = (i.getAttribute('aria-label') || '').toLowerCase();
+                        return ph.indexOf('title') !== -1 || id.indexOf('title') !== -1 || name.indexOf('title') !== -1 || aria.indexOf('title') !== -1;
+                    });
+                }
+                if (el) {
+                    el.focus();
+                    el.scrollIntoView({block: 'center'});
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                        var setter = Object.getOwnPropertyDescriptor(proto, 'value');
+                        if (setter && setter.set) setter.set.call(el, val); else el.value = val;
+                    } else {
+                        try { el.innerText = val; } catch(e) { el.textContent = val; }
+                    }
+                    el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+                    return true;
+                }
+                return false;
+            """, title[:100])
+            if title_filled:
                 log("Title OK!")
             else:
                 log("Title element not found via selectors")
@@ -506,74 +509,38 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         log(f"Description length: {len(desc)} chars")
         log("Filling description...")
         try:
-            desc_selectors = [
-                "[data-test-id='pin-builder-description'] [contenteditable='true']",
-                "[data-test-id='pin-builder-description'] textarea",
-                "[data-test-id='pin-builder-description'] div[role='textbox']",
-                "[data-test-id='description-field']",
-                "textarea[placeholder*='description' i]",
-                "textarea[placeholder*='Tell' i]",
-                "div[placeholder*='description' i]",
-                "div[placeholder*='Tell' i]",
-                "div[aria-label*='description' i]",
-                "div[aria-label*='Tell' i]",
-                "#storyboard-selector-description",
-                ".public-DraftEditor-editor",
-            ]
-            cd = None
-            for sel in desc_selectors:
-                try:
-                    elements = driver.find_elements(By.CSS_SELECTOR, sel)
-                    for el in elements:
-                        if el and el.is_displayed():
-                            el_id = (el.get_attribute("id") or "").lower()
-                            if "title" in el_id:
-                                continue
-                            cd = el
-                            break
-                    if cd:
-                        break
-                except:
-                    continue
-
-            if not cd:
-                for el in driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-draft'] [contenteditable='true'], [data-test-id='pin-builder-draft'] textarea, div[role='textbox']"):
-                    try:
-                        if el.is_displayed() and "title" not in (el.get_attribute("id") or "").lower():
-                            cd = el
-                            break
-                    except:
-                        pass
-
-            if cd:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", cd)
-                time.sleep(0.3)
-                try:
-                    js_click(driver, cd)
-                except Exception:
-                    pass
-                time.sleep(0.2)
-
-                # Safe React & ContentEditable value setter without execCommand crash
-                driver.execute_script("""
-                    var el = arguments[0], val = arguments[1];
+            desc_filled = driver.execute_script("""
+                var val = arguments[0];
+                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], #storyboard-selector-description, .public-DraftEditor-editor";
+                var el = document.querySelector(sel);
+                if (!el) {
+                    var elems = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
+                    el = elems.find(function(c) {
+                        var ph = (c.getAttribute('placeholder') || '').toLowerCase();
+                        var id = (c.getAttribute('id') || '').toLowerCase();
+                        var aria = (c.getAttribute('aria-label') || '').toLowerCase();
+                        var dt = (c.getAttribute('data-test-id') || '').toLowerCase();
+                        if (id.indexOf('title') !== -1 || ph.indexOf('title') !== -1) return false;
+                        return ph.indexOf('description') !== -1 || ph.indexOf('tell') !== -1 || id.indexOf('description') !== -1 || aria.indexOf('description') !== -1 || aria.indexOf('tell') !== -1 || dt.indexOf('description') !== -1;
+                    });
+                }
+                if (el) {
                     el.focus();
-                    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                    el.scrollIntoView({block: 'center'});
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
                         var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-                        var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-                        if (setter) setter.call(el, val); else el.value = val;
+                        var setter = Object.getOwnPropertyDescriptor(proto, 'value');
+                        if (setter && setter.set) setter.set.call(el, val); else el.value = val;
                     } else {
                         try { el.innerText = val; } catch(e) { el.textContent = val; }
                     }
                     el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
                     el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
-                """, cd, desc)
-                time.sleep(0.3)
-                try:
-                    cd.send_keys(" ")
-                    cd.send_keys(Keys.BACKSPACE)
-                except Exception:
-                    pass
+                    return true;
+                }
+                return false;
+            """, desc)
+            if desc_filled:
                 log("Description OK!")
             else:
                 log("Description element not found via selectors")
@@ -582,54 +549,43 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         # ── Step 6: Link ───────────────────────────────────────────
         log("Filling link...")
-        link_selectors = [
-            "[data-test-id='pin-builder-link'] input",
-            "[data-test-id='pin-builder-link'] textarea",
-            "#storyboard-selector-link",
-            "input[name='link']",
-            "input[id='WebsiteField']",
-            "input[placeholder*='link' i]",
-            "input[placeholder*='destination' i]",
-            "input[placeholder*='Add a link' i]",
-            "input[placeholder*='Website' i]"
-        ]
-        lf = None
-        for sel in link_selectors:
-            try:
-                elements = driver.find_elements(By.CSS_SELECTOR, sel)
-                if elements and elements[0].is_displayed():
-                    lf = elements[0]
-                    break
-            except:
-                continue
-        if lf:
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", lf)
-            time.sleep(0.3)
-            try:
-                js_click(driver, lf)
-            except Exception:
-                pass
-            time.sleep(0.2)
-            try:
-                lf.clear()
-            except Exception:
-                pass
-            driver.execute_script("""
-                var el = arguments[0], val = arguments[1];
+        try:
+            link_filled = driver.execute_script("""
+                var val = arguments[0];
+                var sel = "[data-test-id='pin-builder-link'] input, [data-test-id='pin-builder-link'] textarea, #storyboard-selector-link, input[id='WebsiteField'], input[name='link']";
+                var el = document.querySelector(sel);
+                if (!el) {
+                    var inps = Array.from(document.querySelectorAll('input, textarea'));
+                    el = inps.find(function(i) {
+                        var ph = (i.getAttribute('placeholder') || '').toLowerCase();
+                        var id = (i.getAttribute('id') || '').toLowerCase();
+                        var name = (i.getAttribute('name') || '').toLowerCase();
+                        var aria = (i.getAttribute('aria-label') || '').toLowerCase();
+                        return ph.indexOf('link') !== -1 || ph.indexOf('destination') !== -1 || ph.indexOf('website') !== -1 || id.indexOf('link') !== -1 || id.indexOf('website') !== -1 || name.indexOf('link') !== -1;
+                    });
+                }
                 if (el) {
                     el.focus();
+                    el.scrollIntoView({block: 'center'});
                     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                        if (setter) setter.call(el, val); else el.value = val;
-                    } else { el.innerText = val; }
-                    el.dispatchEvent(new Event('input', {bubbles: true}));
-                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                        var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                        var setter = Object.getOwnPropertyDescriptor(proto, 'value');
+                        if (setter && setter.set) setter.set.call(el, val); else el.value = val;
+                    } else {
+                        try { el.innerText = val; } catch(e) { el.textContent = val; }
+                    }
+                    el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+                    return true;
                 }
-            """, lf, target_site)
-            time.sleep(0.3)
-            log("Link OK!")
-        else:
-            log("Link element not found via selectors")
+                return false;
+            """, target_site)
+            if link_filled:
+                log("Link OK!")
+            else:
+                log("Link element not found via selectors")
+        except Exception as e:
+            log(f"Link: {e}")
 
         # ── Step 7: Board ──────────────────────────────────────────
         log("Opening board dropdown...")
