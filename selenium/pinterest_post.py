@@ -237,6 +237,153 @@ def js_set_value(driver, el, value):
 def set_input_value(driver, el, value):
     js_set_value(driver, el, value)
 
+def set_system_clipboard(text):
+    """Sets text to OS clipboard across Windows and Linux platforms."""
+    if not text:
+        return False
+    # Method 1: Windows ctypes win32 API
+    try:
+        import ctypes
+        CF_UNICODETEXT = 13
+        GMEM_MOVEABLE = 0x0002
+        if ctypes.windll.user32.OpenClipboard(None):
+            ctypes.windll.user32.EmptyClipboard()
+            utf16_bytes = text.encode('utf-16le') + b'\x00\x00'
+            h_mem = ctypes.windll.kernel32.GlobalAlloc(GMEM_MOVEABLE, len(utf16_bytes))
+            if h_mem:
+                p_mem = ctypes.windll.kernel32.GlobalLock(h_mem)
+                if p_mem:
+                    ctypes.cdll.msvcrt.memcpy(ctypes.c_void_p(p_mem), utf16_bytes, len(utf16_bytes))
+                    ctypes.windll.kernel32.GlobalUnlock(h_mem)
+                    ctypes.windll.user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+            ctypes.windll.user32.CloseClipboard()
+            return True
+    except Exception:
+        pass
+
+    # Method 2: Windows clip command
+    try:
+        import subprocess
+        p = subprocess.Popen(['clip'], stdin=subprocess.PIPE, shell=True)
+        p.communicate(input=text.encode('utf-16le'))
+        return True
+    except Exception:
+        pass
+
+    # Method 3: Linux xclip
+    try:
+        import subprocess
+        p = subprocess.Popen(['xclip', '-selection', 'clipboard'], stdin=subprocess.PIPE)
+        p.communicate(input=text.encode('utf-8'))
+        return True
+    except Exception:
+        pass
+
+    return False
+
+def fill_draftjs_editor(driver, text):
+    """Accurately fills Pinterest DraftJS description using OS clipboard paste + synthetic events."""
+    if not text:
+        return False
+    
+    # 1. Set OS clipboard
+    set_system_clipboard(text)
+    
+    # 2. Find the DraftJS description element
+    desc_el = None
+    selectors = [
+        "[data-test-id='pin-builder-description'] [contenteditable='true']",
+        "[data-test-id='pin-builder-description'] .public-DraftEditor-editor",
+        "[data-test-id='pin-builder-description'] div[role='textbox']",
+        "[data-test-id='description-field'] [contenteditable='true']",
+        ".public-DraftEditor-editor",
+        "div[contenteditable='true'][role='textbox']",
+        "#storyboard-selector-description",
+        "[data-test-id='pin-builder-description'] textarea"
+    ]
+    for sel in selectors:
+        els = driver.find_elements(By.CSS_SELECTOR, sel)
+        for el in els:
+            if el.is_displayed():
+                desc_el = el
+                break
+        if desc_el:
+            break
+
+    if not desc_el:
+        try:
+            elems = driver.find_elements(By.CSS_SELECTOR, "textarea, div[contenteditable='true'], div[role='textbox']")
+            for c in elems:
+                if not c.is_displayed():
+                    continue
+                ph = (c.get_attribute('placeholder') or '').lower()
+                aria = (c.get_attribute('aria-label') or '').lower()
+                dt = (c.get_attribute('data-test-id') or '').lower()
+                if 'title' in aria or 'title' in ph:
+                    continue
+                if any(w in ph or w in aria or w in dt for w in ['description', 'tell', 'add', 'detail']):
+                    desc_el = c
+                    break
+        except Exception:
+            pass
+
+    if not desc_el:
+        log("DraftJS description element not found via selectors")
+        return False
+
+    log("Found DraftJS description element — activating and pasting text...")
+    
+    try:
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", desc_el)
+        time.sleep(0.3)
+    except Exception:
+        pass
+
+    try:
+        ActionChains(driver).move_to_element(desc_el).click().perform()
+        time.sleep(0.3)
+    except Exception:
+        try:
+            desc_el.click()
+            time.sleep(0.3)
+        except Exception:
+            pass
+
+    try:
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
+        time.sleep(0.2)
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
+        time.sleep(0.5)
+    except Exception as e_ac:
+        log(f"Ctrl+V paste error: {e_ac}")
+
+    cur_text = (desc_el.text or desc_el.get_attribute('value') or '').strip()
+    if not cur_text:
+        log("Direct paste did not register text, dispatching synthetic ClipboardEvent...")
+        try:
+            driver.execute_script("""
+                var el = arguments[0], val = arguments[1];
+                el.focus();
+                try {
+                    var dt = new DataTransfer();
+                    dt.setData('text/plain', val);
+                    var pasteEvt = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: dt });
+                    el.dispatchEvent(pasteEvt);
+                } catch(e) {}
+                try {
+                    document.execCommand('insertText', false, val);
+                } catch(e) {}
+                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+            """, desc_el, text)
+            time.sleep(0.5)
+        except Exception as e_synth:
+            log(f"Synthetic paste note: {e_synth}")
+
+    final_text = (desc_el.text or desc_el.get_attribute('value') or '').strip()
+    log(f"DraftJS Description state length: {len(final_text)} chars")
+    return True
+
 def safe_get(driver, url, max_retries=3, delay=3):
     urls_to_try = [url]
     if "www.pinterest.com" in url:
@@ -624,81 +771,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             )
         desc = desc[:500]
         log(f"Description length: {len(desc)} chars")
-        log("Filling description...")
+        log("Filling description via DraftJS OS Clipboard handler...")
         try:
-            desc_filled = driver.execute_script("""
-                var val = arguments[0];
-                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], [data-test-id='description-field'] [contenteditable='true'], #storyboard-selector-description, .public-DraftEditor-editor";
-                var el = document.querySelector(sel);
-                if (!el) {
-                    var elems = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
-                    el = elems.find(function(c) {
-                        var ph = (c.getAttribute('placeholder') || '').toLowerCase();
-                        var id = (c.getAttribute('id') || '').toLowerCase();
-                        var aria = (c.getAttribute('aria-label') || '').toLowerCase();
-                        var dt = (c.getAttribute('data-test-id') || '').toLowerCase();
-                        if (id.indexOf('title') !== -1 || ph.indexOf('title') !== -1) return false;
-                        return ph.indexOf('description') !== -1 || ph.indexOf('tell') !== -1 || ph.indexOf('add') !== -1 || id.indexOf('description') !== -1 || aria.indexOf('description') !== -1 || aria.indexOf('tell') !== -1 || dt.indexOf('description') !== -1;
-                    });
-                }
-                if (!el) {
-                    var titleEl = document.querySelector("[data-test-id='pin-builder-title'] input, [data-test-id='pin-builder-title'] textarea, #storyboard-selector-title");
-                    var linkEl = document.querySelector("[data-test-id='pin-builder-link'] input, [data-test-id='pin-builder-link'] textarea, input[id='WebsiteField']");
-                    var candidates = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
-                    el = candidates.find(function(c) {
-                        return c !== titleEl && c !== linkEl;
-                    });
-                }
-                if (el) {
-                    el.focus();
-                    el.scrollIntoView({block: 'center'});
-                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                        var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-                        var setter = Object.getOwnPropertyDescriptor(proto, 'value');
-                        if (setter && setter.set) setter.set.call(el, val); else el.value = val;
-                        el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
-                        el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
-                    } else {
-                        try {
-                            document.execCommand('selectAll', false, null);
-                            document.execCommand('insertText', false, val);
-                        } catch(e) {
-                            try { el.innerText = val; } catch(e2) { el.textContent = val; }
-                        }
-                        el.dispatchEvent(new InputEvent('input', {bubbles: true, composed: true, inputType: 'insertText', data: val}));
-                        el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
-                    }
-                    return true;
-                }
-                return false;
-            """, desc)
-            if desc_filled:
-                log("Description element focused and insertText executed!")
+            filled = fill_draftjs_editor(driver, desc)
+            if filled:
+                log("Description filled and DraftJS state confirmed!")
             else:
-                log("Description element not found via selectors")
-
-            # ALWAYS perform ActionChains typing to guarantee DraftJS editor state in React
-            time.sleep(0.5)
-            try:
-                log("Typing description via ActionChains send_keys to guarantee DraftJS React State...")
-                desc_elems = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor, div[contenteditable='true']")
-                if desc_elems:
-                    for de in desc_elems:
-                        if de.is_displayed():
-                            js_click(driver, de)
-                            time.sleep(0.3)
-                            ActionChains(driver).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
-                            time.sleep(0.2)
-                            ActionChains(driver).send_keys(Keys.BACKSPACE).perform()
-                            time.sleep(0.2)
-                            ActionChains(driver).send_keys(desc).perform()
-                            time.sleep(0.5)
-                            log("Typed description via ActionChains send_keys into DraftJS!")
-                            break
-            except Exception as e_ac:
-                log(f"ActionChains desc note: {e_ac}")
+                log("Description fill returned False")
         except Exception as e:
-            log(f"Desc: {e}")
+            log(f"Desc error: {e}")
 
         # ── Step 6: Link ───────────────────────────────────────────
         log("Filling link...")
