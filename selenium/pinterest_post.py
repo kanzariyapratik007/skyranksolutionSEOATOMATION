@@ -772,16 +772,17 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         except Exception as e:
             log(f"Board section: {e}")
 
-        # Send ESC key to close any remaining popovers before publishing
+        # Close popovers
         try:
+            driver.execute_script("try{ document.body.click(); }catch(e){}")
             ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-            time.sleep(1)
+            time.sleep(1.5)
         except Exception:
             pass
 
         # ── Step 8: Publish ────────────────────────────────────────
         log("Publishing pin...")
-        time.sleep(3)
+        time.sleep(2)
         published = False
 
         # Try exact JS click on Pinterest Publish/Save button
@@ -792,8 +793,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     var btns = Array.from(document.querySelectorAll('button'));
                     pubBtn = btns.find(function(b) {
                         var t = (b.innerText || b.textContent || '').trim().toLowerCase();
-                        var tid = (b.getAttribute('data-test-id') || '').toLowerCase();
-                        return (t === 'publish' || t === 'save' || t === 'done' || tid.indexOf('publish') !== -1 || tid.indexOf('save-button') !== -1) && b.offsetWidth > 0 && b.offsetHeight > 0;
+                        var dt = (b.getAttribute('data-test-id') || '').toLowerCase();
+                        return (t === 'publish' || t === 'save' || dt.indexOf('save-button') !== -1 || dt.indexOf('publish') !== -1) && b.offsetWidth > 0 && b.offsetHeight > 0;
                     });
                 }
                 if (pubBtn) {
