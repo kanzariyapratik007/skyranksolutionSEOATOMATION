@@ -2653,15 +2653,6 @@ function autoPost(platformId, platformName, projectId) {
 
 function autoPostAll(platformId, platformName, projectId) {
   if (platformId === 'pinterest') {
-    if (!isPcAgentConnected) {
-      if (!confirm("⚠️ Your PC Agent (run_local_agent.bat) is Offline.\n\nRunning Pinterest posting from AWS server may trigger IP security flags.\n\nDo you want to start run_local_agent.bat on your PC first?\n\nClick OK to retry PC Agent connection, or Cancel to force attempt on AWS Server.")) {
-        runServerAutoPostAll(platformId, platformName, projectId);
-        return;
-      } else {
-        checkPcAgentStatus();
-        return;
-      }
-    }
     runLocalAgentPost(platformId, platformName, projectId);
     return;
   }
