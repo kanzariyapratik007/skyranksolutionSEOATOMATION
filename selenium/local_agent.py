@@ -23,29 +23,40 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
         self.send_header('Access-Control-Allow-Private-Network', 'true')
 
+    def _send_json_response(self, code, data):
+        body = json.dumps(data).encode('utf-8')
+        self.send_response(code)
+        self._send_cors_headers()
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Connection', 'close')
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self._send_cors_headers()
         self.send_header('Content-Length', '0')
+        self.send_header('Connection', 'close')
         self.end_headers()
 
     def do_GET(self):
         if self.path.startswith('/health_js'):
+            body = "if(window.onSkyRankAgentReady) window.onSkyRankAgentReady();".encode('utf-8')
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/javascript')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Connection', 'close')
             self.end_headers()
-            res = "if(window.onSkyRankAgentReady) window.onSkyRankAgentReady();"
-            self.wfile.write(res.encode('utf-8'))
+            self.wfile.write(body)
         elif self.path == '/health' or self.path == '/':
-            self.send_response(200)
-            self._send_cors_headers()
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
             res = {"status": "active", "agent": "SkyRank Local Engine", "port": PORT}
-            self.wfile.write(json.dumps(res).encode('utf-8'))
+            self._send_json_response(200, res)
         else:
             self.send_response(404)
+            self.send_header('Content-Length', '0')
+            self.send_header('Connection', 'close')
             self.end_headers()
 
     def do_POST(self):
@@ -56,11 +67,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             try:
                 payload = json.loads(post_data.decode('utf-8'))
             except Exception as e:
-                self.send_response(400)
-                self._send_cors_headers()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": False, "error": f"Invalid JSON: {e}"}).encode('utf-8'))
+                self._send_json_response(400, {"success": False, "error": f"Invalid JSON: {e}"})
                 return
 
             email       = payload.get('email', '')
@@ -107,27 +114,17 @@ class AgentHandler(BaseHTTPRequestHandler):
                 else:
                     res_data = {"success": False, "error": f"Process exited without result JSON. Stderr: {stderr[:200]}"}
 
-                self.send_response(200)
-                self._send_cors_headers()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps(res_data).encode('utf-8'))
+                self._send_json_response(200, res_data)
 
             except subprocess.TimeoutExpired:
-                self.send_response(504)
-                self._send_cors_headers()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": False, "error": "Execution timed out after 300 seconds"}).encode('utf-8'))
+                self._send_json_response(504, {"success": False, "error": "Execution timed out after 300 seconds"})
 
             except Exception as e:
-                self.send_response(500)
-                self._send_cors_headers()
-                self.send_header('Content-Type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode('utf-8'))
+                self._send_json_response(500, {"success": False, "error": str(e)})
         else:
             self.send_response(404)
+            self.send_header('Content-Length', '0')
+            self.send_header('Connection', 'close')
             self.end_headers()
 
 def run_server():
