@@ -51,7 +51,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 "--disable-dev-shm-usage",
                 "--disable-blink-features=AutomationControlled",
                 "--disable-gpu",
-                "--disable-software-rasterizer"
+                "--disable-software-rasterizer",
+                "--js-flags=--max-old-space-size=256",
+                "--disable-extensions",
+                "--no-zygote",
+                "--renderer-process-limit=1"
             ]
             
             headless_mode = True
