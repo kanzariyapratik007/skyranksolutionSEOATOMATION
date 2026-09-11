@@ -24,8 +24,9 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Private-Network', 'true')
 
     def do_OPTIONS(self):
-        self.send_response(200)
+        self.send_response(204)
         self._send_cors_headers()
+        self.send_header('Content-Length', '0')
         self.end_headers()
 
     def do_GET(self):

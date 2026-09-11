@@ -2484,41 +2484,15 @@ function updateAutoPostSelection() {
 let isPcAgentConnected = false;
 let LOCAL_AGENT_URL = 'http://127.0.0.1:8989';
 
-function checkPcAgentStatus() {
+function setPcAgentOnline(url) {
+  isPcAgentConnected = true;
+  LOCAL_AGENT_URL = url;
   const badge = document.getElementById('pcAgentBadge');
-  
-  const checkUrl = (url) => {
-    return fetch(url + '/health', { mode: 'cors', signal: AbortSignal.timeout(3000) })
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP error ' + r.status);
-        return r.json();
-      })
-      .then(data => {
-        if (data && data.status === 'active') {
-          LOCAL_AGENT_URL = url;
-          return data;
-        }
-        throw new Error('Invalid agent payload');
-      });
-  };
-
-  checkUrl('http://127.0.0.1:8989')
-    .catch(() => checkUrl('http://localhost:8989'))
-    .then(data => {
-      if (data && data.status === 'active') {
-        isPcAgentConnected = true;
-        if (badge) {
-          badge.className = 'badge bg-success p-2 shadow-sm';
-          badge.innerHTML = '<i class="fas fa-desktop me-1"></i>🟢 PC Agent Connected';
-          badge.title = 'Local PC Engine is running on ' + LOCAL_AGENT_URL;
-        }
-      } else {
-        setPcAgentOffline();
-      }
-    })
-    .catch(() => {
-      setPcAgentOffline();
-    });
+  if (badge) {
+    badge.className = 'badge bg-success p-2 shadow-sm';
+    badge.innerHTML = '<i class="fas fa-desktop me-1"></i>🟢 PC Agent Connected';
+    badge.title = 'Local PC Engine is running on ' + url;
+  }
 }
 
 function setPcAgentOffline() {
@@ -2529,6 +2503,41 @@ function setPcAgentOffline() {
     badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline';
     badge.title = 'Double-click run_local_agent.bat on your PC for 0-block posting';
   }
+}
+
+function checkPcAgentStatus() {
+  // 1. Try standard CORS fetch on 127.0.0.1
+  fetch('http://127.0.0.1:8989/health', { signal: AbortSignal.timeout(2000) })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.status === 'active') {
+        setPcAgentOnline('http://127.0.0.1:8989');
+      } else {
+        setPcAgentOffline();
+      }
+    })
+    .catch(() => {
+      // 2. Fallback: Try localhost
+      fetch('http://localhost:8989/health', { signal: AbortSignal.timeout(2000) })
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.status === 'active') {
+            setPcAgentOnline('http://localhost:8989');
+          } else {
+            setPcAgentOffline();
+          }
+        })
+        .catch(() => {
+          // 3. Fallback: Try no-cors mode (proves local server port 8989 is listening)
+          fetch('http://127.0.0.1:8989/health', { mode: 'no-cors', signal: AbortSignal.timeout(2000) })
+            .then(() => {
+              setPcAgentOnline('http://127.0.0.1:8989');
+            })
+            .catch(() => {
+              setPcAgentOffline();
+            });
+        });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
