@@ -2482,19 +2482,35 @@ function updateAutoPostSelection() {
 
 // Local PC Agent Bridge Logic
 let isPcAgentConnected = false;
-const LOCAL_AGENT_URL = 'http://127.0.0.1:8989';
+let LOCAL_AGENT_URL = 'http://127.0.0.1:8989';
 
 function checkPcAgentStatus() {
   const badge = document.getElementById('pcAgentBadge');
-  fetch(LOCAL_AGENT_URL + '/health', { signal: AbortSignal.timeout(3000) })
-    .then(r => r.json())
+  
+  const checkUrl = (url) => {
+    return fetch(url + '/health', { mode: 'cors', signal: AbortSignal.timeout(3000) })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP error ' + r.status);
+        return r.json();
+      })
+      .then(data => {
+        if (data && data.status === 'active') {
+          LOCAL_AGENT_URL = url;
+          return data;
+        }
+        throw new Error('Invalid agent payload');
+      });
+  };
+
+  checkUrl('http://127.0.0.1:8989')
+    .catch(() => checkUrl('http://localhost:8989'))
     .then(data => {
       if (data && data.status === 'active') {
         isPcAgentConnected = true;
         if (badge) {
           badge.className = 'badge bg-success p-2 shadow-sm';
           badge.innerHTML = '<i class="fas fa-desktop me-1"></i>🟢 PC Agent Connected';
-          badge.title = 'Local PC Engine is running on http://127.0.0.1:8989';
+          badge.title = 'Local PC Engine is running on ' + LOCAL_AGENT_URL;
         }
       } else {
         setPcAgentOffline();
