@@ -393,6 +393,19 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Opening Pin creation tool (pin-builder)...")
             safe_get(driver, "https://www.pinterest.com/pin-builder/")
             time.sleep(5)
+        
+        # Check if existing drafts drawer is active and click 'Create new' to ensure fresh canvas
+        try:
+            create_new_btns = driver.find_elements(By.XPATH, "//button[contains(., 'Create new') or contains(., 'Create New')]")
+            for b in create_new_btns:
+                if b.is_displayed():
+                    log("Found existing Pin drafts drawer — clicking 'Create new' to start on fresh canvas...")
+                    driver.execute_script("arguments[0].click();", b)
+                    time.sleep(2)
+                    break
+        except Exception as e_draft:
+            log(f"Draft check notice: {e_draft}")
+        
         log("Pin builder ready")
 
         # ── Step 3: Upload image ───────────────────────────────────
@@ -949,6 +962,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log(f"Profile check error: {e_prof}")
 
         if pin_url_found:
+            time.sleep(3) # Let Pinterest finalize background draft cleanup
             result(True, url=pin_url_found)
             return
         else:

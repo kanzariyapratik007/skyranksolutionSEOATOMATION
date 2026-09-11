@@ -1434,7 +1434,7 @@ $secondBoxList = array_slice($orderedSitesList, 10);
     <div class="card-body py-2 px-3 d-flex align-items-center flex-wrap gap-3">
       <div class="d-flex align-items-center gap-2">
         <strong class="small text-muted mb-0"><i class="fas fa-key me-1"></i> Select Keyword for Auto-Post:</strong>
-        <select id="backlinkKeywordSelect" class="form-select form-select-sm" style="width: auto; min-width: 250px;" onchange="updateAutoPostSelection()">
+        <select id="backlinkKeywordSelect" class="form-select form-select-sm" style="width: auto; min-width: 250px;" onchange="onKeywordChange()">
           <?php foreach ($keywordsList as $kw): ?>
             <option value="<?= htmlspecialchars($kw, ENT_QUOTES, 'UTF-8') ?>" <?= $currentKeyword === $kw ? 'selected' : '' ?>><?= htmlspecialchars($kw) ?></option>
           <?php endforeach; ?>
@@ -2567,6 +2567,17 @@ function editCredForm(acc, platformId, platformName, projectId) {
       apiSecretInput.value = acc.api_secret || '';
     }
   }
+}
+
+function onKeywordChange() {
+  const kwSelect = document.getElementById('backlinkKeywordSelect');
+  const siteSelect = document.getElementById('backlinkUrlSelect');
+  if (kwSelect && siteSelect && kwSelect.selectedIndex >= 0) {
+    if (siteSelect.options.length > kwSelect.selectedIndex) {
+      siteSelect.selectedIndex = kwSelect.selectedIndex;
+    }
+  }
+  updateAutoPostSelection();
 }
 
 function updateAutoPostSelection() {
