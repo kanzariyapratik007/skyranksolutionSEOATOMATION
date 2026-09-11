@@ -620,22 +620,49 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 time.sleep(2)
                 log("Board dropdown opened")
 
-            # Check for existing boards — select available board
-            rows = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='boardWithoutSection'], [data-test-id='board-row'], div[role='option']")
-            if rows:
-                log(f"Board rows found: {len(rows)}")
-                selected_row = rows[0]
-                for r in rows:
-                    txt = (r.text or '').strip().lower()
-                    if txt and 'create' not in txt:
-                        selected_row = r
-                        break
-                if selected_row:
-                    txt = selected_row.text.strip()
-                    js_click(driver, selected_row)
-                    time.sleep(2)
-                    log(f"Board selected: '{txt[:60]}'")
-                    board_selected = True
+            # Check for existing boards — select available board via synthetic events
+            board_selected = driver.execute_script("""
+                var options = Array.from(document.querySelectorAll('[data-test-id="boardWithoutSection"], [data-test-id="board-row"], div[role="option"], div[role="button"]'));
+                var validOption = options.find(function(el) {
+                    var t = (el.innerText || el.textContent || '').trim().toLowerCase();
+                    return t && !t.includes('create') && !t.includes('search') && !t.includes('all boards');
+                });
+                if (!validOption) {
+                    var allDivs = Array.from(document.querySelectorAll('div'));
+                    validOption = allDivs.find(function(el) {
+                        var t = (el.innerText || el.textContent || '').trim();
+                        return t.length > 0 && t.length < 40 && t !== 'PROPATY' && (t.indexOf('PROPATY') !== -1 || el.getAttribute('title') === 'PROPATY');
+                    }) || allDivs.find(function(el) {
+                        var t = (el.innerText || el.textContent || '').trim().toLowerCase();
+                        return el.children.length === 0 && t.length > 1 && t.length < 40 && !t.includes('create') && !t.includes('search') && !t.includes('title') && !t.includes('board');
+                    });
+                }
+                if (validOption) {
+                    validOption.scrollIntoView({block: 'center'});
+                    ['mousedown', 'mouseup', 'click'].forEach(function(evtName) {
+                        var evt = new MouseEvent(evtName, { bubbles: true, cancelable: true, view: window });
+                        validOption.dispatchEvent(evt);
+                    });
+                    return true;
+                }
+                return false;
+            """)
+
+            if board_selected:
+                time.sleep(2)
+                log("Board selected via JS synthetic mouse events!")
+            else:
+                log("No existing board clicked — checking python rows...")
+                rows = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='boardWithoutSection'], [data-test-id='board-row'], div[role='option']")
+                if rows:
+                    for r in rows:
+                        txt = (r.text or '').strip().lower()
+                        if txt and 'create' not in txt:
+                            js_click(driver, r)
+                            time.sleep(2)
+                            log(f"Board selected via selenium click: '{txt[:60]}'")
+                            board_selected = True
+                            break
 
             if not board_selected:
                 log("No existing boards — creating new...")
@@ -647,7 +674,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 time.sleep(3)
                 log("Create board modal opened")
 
-                # board-form-container input — skip known non-board inputs
                 board_name = f"{keyword.title()} Training"
                 board_name_set = False
 
@@ -658,7 +684,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 }
 
                 all_inputs = driver.find_elements(By.TAG_NAME, "input")
-                log(f"Total inputs: {len(all_inputs)}")
 
                 for inp in all_inputs:
                     try:
@@ -674,8 +699,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         if not inp.is_displayed():
                             continue
 
-                        log(f"Board input: id={inp_id} ph={inp_ph}")
-                        # Scroll to it, click, type
                         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", inp)
                         time.sleep(0.3)
                         ActionChains(driver).move_to_element(inp).click().perform()
@@ -683,40 +706,33 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         inp.send_keys(board_name)
                         time.sleep(0.4)
                         actual = inp.get_attribute('value') or ''
-                        log(f"Input value after typing: '{actual}'")
                         if actual:
                             board_name_set = True
                             break
                         else:
-                            # Try JS React setter
                             js_set_value(driver, inp, board_name)
                             time.sleep(0.3)
                             actual2 = inp.get_attribute('value') or ''
                             if actual2:
-                                log("Board name set via JS React setter!")
                                 board_name_set = True
                                 break
                     except Exception as e:
                         log(f"  input try: {e}")
 
                 if not board_name_set:
-                    log("All input attempts failed — trying active element")
                     try:
-                        # Click the create board button area and Tab to input
                         driver.execute_script(
                             "document.querySelector('[data-test-id=\"board-form-container\"]').querySelector('input').focus();"
                         )
                         time.sleep(0.3)
                         driver.switch_to.active_element.send_keys(board_name)
                         time.sleep(0.3)
-                        log("Board name via active element!")
                         board_name_set = True
                     except Exception as e:
                         log(f"Active element: {e}")
 
                 time.sleep(1)
 
-                # Click Create button — data-test-id='board-form-submit-button'
                 try:
                     sbmt = wait.until(EC.element_to_be_clickable(
                         (By.CSS_SELECTOR, "[data-test-id='board-form-submit-button']")))
@@ -726,7 +742,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     board_selected = True
                 except Exception as e:
                     log(f"board-form-submit: {e}")
-                    # Fallback
                     for btn in driver.find_elements(By.TAG_NAME, "button"):
                         if btn.text.strip() in ("Create", "Create board") and btn.is_displayed():
                             js_click(driver, btn)
@@ -738,6 +753,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         except Exception as e:
             log(f"Board section: {e}")
 
+        # Send ESC key to close any remaining popovers before publishing
+        try:
+            ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+            time.sleep(1)
+        except Exception:
+            pass
+
         # ── Step 8: Publish ────────────────────────────────────────
         log("Publishing pin...")
         time.sleep(3)
@@ -746,7 +768,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         # Try exact JS click on Pinterest Publish/Save button
         try:
             click_success = driver.execute_script("""
-                var pubBtn = document.querySelector("[data-test-id='board-dropdown-save-button'], [data-test-id='storyboard-creation-nav-save-button'], [data-test-id='pin-builder-publish-button']");
+                var pubBtn = document.querySelector("[data-test-id='board-dropdown-save-button'], [data-test-id='storyboard-creation-nav-save-button'], [data-test-id='pin-builder-publish-button'], [data-test-id='publish-button']");
                 if (!pubBtn) {
                     var btns = Array.from(document.querySelectorAll('button'));
                     pubBtn = btns.find(function(b) {
@@ -757,13 +779,16 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 }
                 if (pubBtn) {
                     pubBtn.scrollIntoView({block: 'center'});
-                    pubBtn.click();
+                    ['mousedown', 'mouseup', 'click'].forEach(function(evtName) {
+                        var evt = new MouseEvent(evtName, { bubbles: true, cancelable: true, view: window });
+                        pubBtn.dispatchEvent(evt);
+                    });
                     return true;
                 }
                 return false;
             """)
             if click_success:
-                log("Clicked Publish button via JS!")
+                log("Clicked Publish button via JS synthetic mouse events!")
                 time.sleep(8)
                 published = True
         except Exception as e_js_pub:
@@ -773,7 +798,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             pub_selectors = [
                 "[data-test-id='board-dropdown-save-button']",
                 "[data-test-id='storyboard-creation-nav-save-button']",
-                "[data-test-id='pin-builder-publish-button']"
+                "[data-test-id='pin-builder-publish-button']",
+                "[data-test-id='publish-button']"
             ]
             for sel in pub_selectors:
                 try:
