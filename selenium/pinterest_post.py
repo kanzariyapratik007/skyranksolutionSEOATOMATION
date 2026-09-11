@@ -792,22 +792,34 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         # ── Step 9: Get URL ────────────────────────────────────────
         time.sleep(5)
-        for _ in range(8):
+        for _ in range(10):
             cu = driver.current_url
             if "/pin/" in cu:
+                log(f"Pin created successfully! URL: {cu}")
                 result(True, url=cu)
+                return
+            page = driver.page_source
+            pin_urls = re.findall(r'https://[a-z.]*pinterest\.com/pin/\d+', page)
+            if pin_urls:
+                log(f"Pin created successfully! URL: {pin_urls[0]}")
+                result(True, url=pin_urls[0])
                 return
             time.sleep(2)
 
-        page = driver.page_source
-        pin_urls = re.findall(r'https://[a-z.]*pinterest\.com/pin/\d+', page)
-        if pin_urls:
-            result(True, url=pin_urls[0])
-        elif published and image_uploaded:
-            uname = email.split("@")[0].lower().replace(".", "")
-            result(True, url=f"https://www.pinterest.com/{uname}/")
-        else:
-            result(False, error="Pin save failed: Image file was missing or Publish button remained disabled.")
+        # Check if created pin modal, button or toast link is on screen
+        try:
+            links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/pin/']")
+            for l in links:
+                href = l.get_attribute('href')
+                if href and '/pin/' in href:
+                    log(f"Pin created successfully! URL: {href}")
+                    result(True, url=href)
+                    return
+        except Exception:
+            pass
+
+        result(False, error="Pin creation could not be verified on Pinterest. Please check if Pinterest requested board selection, title, or captcha.")
+
 
     except Exception as e:
         try:
