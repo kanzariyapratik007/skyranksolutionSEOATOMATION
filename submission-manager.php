@@ -36,6 +36,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
     exit;
 }
 
+// Handle AJAX Local Agent payload request
+if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
+    header('Content-Type: application/json');
+    $pId = (int)($_GET['project_id'] ?? 0);
+    $platform = clean($_GET['platform'] ?? 'pinterest');
+    $keyword = !empty($_GET['keyword']) ? clean($_GET['keyword']) : '';
+    $targetSite = !empty($_GET['target_site']) ? clean($_GET['target_site']) : '';
+
+    $stmt = $db->prepare("SELECT * FROM projects WHERE id=? AND user_id=?");
+    $stmt->execute([$pId, $userId]);
+    $proj = $stmt->fetch();
+    if (!$proj) {
+        echo json_encode(['error' => 'Project not found']);
+        exit;
+    }
+
+    if (empty($keyword)) $keyword = $proj['target_keyword'];
+    if (empty($targetSite)) $targetSite = $proj['target_site'] ?: $proj['website_url'];
+
+    $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE project_id=? AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
+    $credStmt->execute([$pId, $platform]);
+    $creds = $credStmt->fetch();
+    if (!$creds) {
+        echo json_encode(['error' => 'No active credentials found for ' . $platform]);
+        exit;
+    }
+
+    $email = $creds['username'] ?? '';
+    $pass  = decodePass($creds['password'] ?? '');
+
+    // Generate AI Title & Description
+    require_once 'ai-content.php';
+    $aiTitle = generateAITitle($keyword);
+    $aiDesc  = generateAIDescription($keyword, $targetSite);
+
+    // Marketing image if available
+    require_once 'image-generator.php';
+    $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
+    $phone = $creds['phone'] ?? '9036354554';
+    $imgEmail = $email ?: 'office.learnmore@gmail.com';
+    $res = generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
+    
+    $imageUrl = '';
+    if (file_exists($verticalImg)) {
+        $imageUrl = SITE_URL . "/uploads/project_{$pId}_vertical.jpg";
+    }
+
+    echo json_encode([
+        'success'     => true,
+        'email'       => $email,
+        'password'    => $pass,
+        'keyword'     => $keyword,
+        'target_site' => $targetSite,
+        'ai_title'    => $aiTitle,
+        'ai_desc'     => $aiDesc,
+        'image_url'   => $imageUrl,
+        'account_id'  => $creds['id']
+    ]);
+    exit;
+}
+
+// Handle AJAX Save Local Backlink Result
+if (isset($_GET['action']) && $_GET['action'] === 'save_local_backlink') {
+    header('Content-Type: application/json');
+    $pId = (int)($_POST['project_id'] ?? 0);
+    $platform = clean($_POST['platform'] ?? 'pinterest');
+    $url = clean($_POST['url'] ?? '');
+    $postTitle = clean($_POST['post_title'] ?? '');
+    $keyword = clean($_POST['keyword'] ?? '');
+    $targetSite = clean($_POST['target_site'] ?? '');
+
+    if (!empty($url)) {
+        try {
+            $db->prepare("INSERT INTO backlinks (project_id, backlink_url, platform, da_score, status, post_title, keyword, target_url) VALUES (?,?,?,?,'created',?,?,?)")
+               ->execute([$pId, $url, $platform, 70, $postTitle, $keyword, $targetSite]);
+        } catch (PDOException $e) {
+            $db->prepare("INSERT INTO backlinks (project_id, backlink_url, platform, da_score, status, post_title, keyword) VALUES (?,?,?,?,'created',?,?)")
+               ->execute([$pId, $url, $platform, 70, $postTitle, $keyword]);
+        }
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['error' => 'No backlink URL provided']);
+    }
+    exit;
+}
+
 // Platform list with what system does automatically
 $platforms = [
     'profile_creation' => [
@@ -1195,7 +1281,11 @@ $secondBoxList = array_slice($orderedSitesList, 10);
       <h3><i class="fas fa-paper-plane me-2 text-primary"></i>Submission Manager</h3>
       <p class="text-muted">Provide user credentials → System will post automatically</p>
     </div>
-    <div class="col-auto">
+    <div class="col-auto d-flex align-items-center gap-2">
+      <!-- PC Agent Connection Badge -->
+      <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="checkPcAgentStatus()" title="Click to refresh PC Agent status">
+        <span class="spinner-border spinner-border-sm me-1"></span>Checking PC Agent...
+      </div>
       <!-- Project selector -->
       <select class="form-select" onchange="location.href='submission-manager.php?project_id='+this.value">
         <?php foreach ($projects as $p): ?>
@@ -2390,11 +2480,138 @@ function updateAutoPostSelection() {
   refreshBacklinkTables();
 }
 
+// Local PC Agent Bridge Logic
+let isPcAgentConnected = false;
+const LOCAL_AGENT_URL = 'http://127.0.0.1:8989';
+
+function checkPcAgentStatus() {
+  const badge = document.getElementById('pcAgentBadge');
+  fetch(LOCAL_AGENT_URL + '/health', { signal: AbortSignal.timeout(3000) })
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.status === 'active') {
+        isPcAgentConnected = true;
+        if (badge) {
+          badge.className = 'badge bg-success p-2 shadow-sm';
+          badge.innerHTML = '<i class="fas fa-desktop me-1"></i>🟢 PC Agent Connected';
+          badge.title = 'Local PC Engine is running on http://127.0.0.1:8989';
+        }
+      } else {
+        setPcAgentOffline();
+      }
+    })
+    .catch(() => {
+      setPcAgentOffline();
+    });
+}
+
+function setPcAgentOffline() {
+  isPcAgentConnected = false;
+  const badge = document.getElementById('pcAgentBadge');
+  if (badge) {
+    badge.className = 'badge bg-danger p-2 shadow-sm';
+    badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline';
+    badge.title = 'Double-click run_local_agent.bat on your PC for 0-block posting';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  checkPcAgentStatus();
+  setInterval(checkPcAgentStatus, 5000);
+});
+
+function runLocalAgentPost(platformId, platformName, projectId) {
+  const modal = new bootstrap.Modal(document.getElementById('postModal'));
+  document.getElementById('postingStatus').innerHTML = `🚀 Preparing ${platformName} Auto-Post...`;
+  document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Fetching credentials from AWS Database & generating AI title/image...`;
+  modal.show();
+
+  const kwSelect = document.getElementById('backlinkKeywordSelect');
+  const kw = kwSelect ? encodeURIComponent(kwSelect.value) : '';
+  const siteSelect = document.getElementById('backlinkUrlSelect');
+  const siteUrl = siteSelect ? encodeURIComponent(siteSelect.value) : '';
+
+  // Step 1: Get payload from AWS DB
+  fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${projectId}&keyword=${kw}&target_site=${siteUrl}`)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch credentials from DB');
+      }
+
+      document.getElementById('postingStatus').innerHTML = `🤖 Opening Chrome on your PC...`;
+      document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Running Selenium on your PC for account <strong>${data.email}</strong>... Please do not close Chrome.`;
+
+      // Step 2: Post via Local PC Agent
+      return fetch(`${LOCAL_AGENT_URL}/run_pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          keyword: data.keyword,
+          target_site: data.target_site,
+          image_url: data.image_url,
+          ai_title: data.ai_title,
+          ai_desc: data.ai_desc
+        })
+      }).then(r => r.json()).then(result => ({ result, payload: data }));
+    })
+    .then(({ result, payload }) => {
+      if (result.success) {
+        document.getElementById('postingStatus').innerHTML = `✅ Successfully Posted to ${platformName}!`;
+        document.getElementById('postingDetail').innerHTML = `<strong>Pin Created:</strong> <a href="${result.url}" target="_blank" class="fw-bold">${result.url}</a><br><span class="text-success mt-1 d-inline-block"><i class="fas fa-check-circle me-1"></i>Saved to AWS Database Reports!</span>`;
+
+        // Step 3: Save created backlink to AWS DB
+        const fd = new FormData();
+        fd.append('project_id', projectId);
+        fd.append('platform', platformId);
+        fd.append('url', result.url);
+        fd.append('post_title', payload.ai_title);
+        fd.append('keyword', payload.keyword);
+        fd.append('target_site', payload.target_site);
+
+        fetch('submission-manager.php?action=save_local_backlink', {
+          method: 'POST',
+          body: fd
+        }).then(() => refreshBacklinkTables());
+
+        setTimeout(() => {
+          modal.hide();
+        }, 4000);
+      } else {
+        document.getElementById('postingStatus').innerHTML = `❌ Posting Failed`;
+        document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${result.error || 'Execution failed on PC'}</div>`;
+      }
+    })
+    .catch(err => {
+      document.getElementById('postingStatus').innerHTML = `⚠️ Local Post Error`;
+      document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${err.message}</div>`;
+    });
+}
+
 function autoPost(platformId, platformName, projectId) {
   autoPostAll(platformId, platformName, projectId);
 }
 
 function autoPostAll(platformId, platformName, projectId) {
+  if (platformId === 'pinterest') {
+    if (!isPcAgentConnected) {
+      if (!confirm("⚠️ Your PC Agent (run_local_agent.bat) is Offline.\n\nRunning Pinterest posting from AWS server may trigger IP security flags.\n\nDo you want to start run_local_agent.bat on your PC first?\n\nClick OK to retry PC Agent connection, or Cancel to force attempt on AWS Server.")) {
+        runServerAutoPostAll(platformId, platformName, projectId);
+        return;
+      } else {
+        checkPcAgentStatus();
+        return;
+      }
+    }
+    runLocalAgentPost(platformId, platformName, projectId);
+    return;
+  }
+  runServerAutoPostAll(platformId, platformName, projectId);
+}
+
+function runServerAutoPostAll(platformId, platformName, projectId) {
   const modal = new bootstrap.Modal(document.getElementById('postModal'));
   document.getElementById('postingStatus').textContent = 'Posting to ' + platformName + '...';
   document.getElementById('postingDetail').textContent = 'Posting to all accounts simultaneously...';
