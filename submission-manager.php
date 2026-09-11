@@ -38,6 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
     exit;
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'save_tunnel_url') {
+    if (ob_get_length()) ob_clean();
+    header('Content-Type: application/json');
+    $tunnelUrl = trim($_GET['url'] ?? $_POST['url'] ?? '');
+    if (!empty($tunnelUrl)) {
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS system_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value TEXT)");
+            $stmt = $db->prepare("REPLACE INTO system_settings (setting_key, setting_value) VALUES ('cloudflared_tunnel_url', ?)");
+            $stmt->execute([$tunnelUrl]);
+            echo json_encode(['success' => true, 'url' => $tunnelUrl]);
+            exit;
+        } catch (Throwable $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+            exit;
+        }
+    }
+    echo json_encode(['error' => 'No URL provided']);
+    exit;
+}
+
 // Handle AJAX Local Agent payload request
 if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
     if (ob_get_length()) ob_clean();
@@ -2533,6 +2553,23 @@ function updateAutoPostSelection() {
   // Instantly refresh Created Backlinks & Pending Queue for newly selected keyword and URL
   refreshBacklinkTables();
 }
+
+<?php
+$autoTunnelUrl = '';
+try {
+    $tStmt = $db->query("SELECT setting_value FROM system_settings WHERE setting_key='cloudflared_tunnel_url'");
+    $tRow = $tStmt ? $tStmt->fetch() : null;
+    if ($tRow && !empty($tRow['setting_value'])) {
+        $autoTunnelUrl = trim($tRow['setting_value']);
+    }
+} catch (Throwable $e) {}
+?>
+<script>
+const AUTO_TUNNEL_URL = <?= json_encode($autoTunnelUrl) ?>;
+if (AUTO_TUNNEL_URL && AUTO_TUNNEL_URL.startsWith('https://')) {
+    localStorage.setItem('skyrank_pc_agent_url', AUTO_TUNNEL_URL);
+}
+</script>
 
 // Local PC Agent Bridge Logic (Option 3 HTTPS Tunnel Supported)
 let isPcAgentConnected = false;

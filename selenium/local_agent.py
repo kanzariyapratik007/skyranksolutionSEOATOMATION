@@ -253,8 +253,14 @@ def start_cloudflared():
                     print("\n==================================================", flush=True)
                     print("  [SECURE HTTPS TUNNEL CREATED!]", flush=True)
                     print(f"  [HTTPS URL]: {CURRENT_TUNNEL_URL}", flush=True)
-                    print("  -> COPY THIS HTTPS URL & PASTE IT IN WEB PORTAL", flush=True)
+                    print("  -> AUTO-REGISTERING TUNNEL TO AWS WEB PORTAL...", flush=True)
                     print("==================================================\n", flush=True)
+                    try:
+                        req_url = f"http://52.55.247.39/submission-manager.php?action=save_tunnel_url&url={CURRENT_TUNNEL_URL}"
+                        urllib.request.urlopen(req_url, timeout=5)
+                        print("  [AUTO-REGISTERED TUNNEL TO AWS PORTAL SUCCESS!]", flush=True)
+                    except Exception as ex_t:
+                        print(f"  [Auto-Register Tunnel note]: {ex_t}", flush=True)
 
         t = threading.Thread(target=monitor_tunnel, daemon=True)
         t.start()
