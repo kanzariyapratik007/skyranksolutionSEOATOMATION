@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyRank SEO Automation - Client Side Execution Bridge</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #e60023;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --green: #22c55e;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 650px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 20px;
+            margin-bottom: 24px;
+        }
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-badge {
+            font-size: 13px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #334155;
+            color: var(--text-sub);
+        }
+        .status-badge.active {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--green);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-sub);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        input[type="text"], input[type="password"], input[type="email"] {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background-color: #0f172a;
+            color: #fff;
+            font-size: 15px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            border-color: var(--accent);
+        }
+        .btn-post {
+            width: 100%;
+            background-color: var(--accent);
+            color: #fff;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s, background-color 0.2s;
+            margin-top: 10px;
+        }
+        .btn-post:hover {
+            background-color: #ad001a;
+        }
+        .btn-post:disabled {
+            background-color: #475569;
+            cursor: not-allowed;
+        }
+        .console-output {
+            margin-top: 24px;
+            background-color: #090d16;
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid #1e293b;
+            font-family: monospace;
+            font-size: 13px;
+            color: #38bdf8;
+            min-height: 100px;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="title">
+            <span style="color: var(--accent);">📌</span> SkyRank Pinterest Portal
+        </div>
+        <div id="pcStatus" class="status-badge">
+            <span class="dot"></span> Checking PC Connection...
+        </div>
+    </div>
+
+    <form id="pinForm" onsubmit="handlePost(event)">
+        <div class="form-group">
+            <label>Pinterest Email</label>
+            <input type="email" id="email" value="llmt2856@gmail.com" required>
+        </div>
+
+        <div class="form-group">
+            <label>Pinterest Password</label>
+            <input type="password" id="password" value="@DISHA12@" required>
+        </div>
+
+        <div class="form-group">
+            <label>Keyword</label>
+            <input type="text" id="keyword" value="SEO Training Tips" required>
+        </div>
+
+        <div class="form-group">
+            <label>Target Website Link</label>
+            <input type="text" id="target_site" value="https://example.com" required>
+        </div>
+
+        <button type="submit" id="btnSubmit" class="btn-post">🚀 POST PIN NOW (Local Client Execution)</button>
+    </form>
+
+    <div id="console" class="console-output">Ready to post. Checking PC Local Agent connection...</div>
+</div>
+
+<script>
+    const AGENT_URL = 'http://127.0.0.1:8989';
+
+    function log(msg) {
+        const consoleEl = document.getElementById('console');
+        consoleEl.textContent += '\n' + msg;
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    async function checkAgentConnection() {
+        const badge = document.getElementById('pcStatus');
+        try {
+            const res = await fetch(AGENT_URL + '/health', { method: 'GET' });
+            if (res.ok) {
+                badge.className = 'status-badge active';
+                badge.innerHTML = '<span class="dot"></span> 🟢 PC Agent Connected';
+                log("[System] Local Agent active on 127.0.0.1:8989. Ready for 0-latency execution!");
+            } else {
+                throw new Error("Agent inactive");
+            }
+        } catch (e) {
+            badge.className = 'status-badge';
+            badge.innerHTML = '<span class="dot"></span> 🔴 PC Agent Disconnected';
+            log("[Warning] Local Agent not running on User PC. Please start local_agent.py.");
+        }
+    }
+
+    async function handlePost(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.innerText = "⏳ Processing Pin on User PC...";
+
+        log("\n--------------------------------------------------");
+        log("[Web Portal] Sending AI Generated Task Package to Local PC Agent...");
+
+        const payload = {
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value,
+            keyword: document.getElementById('keyword').value,
+            target_site: document.getElementById('target_site').value,
+            ai_title: "Best " + document.getElementById('keyword').value + " - 2026 Guide",
+            ai_content: "Learnmore Technologies offers expert-led SEO Training with placement support."
+        };
+
+        try {
+            const res = await fetch(AGENT_URL + '/run_pin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                log("[SUCCESS 🎉] Pin Published Successfully!");
+                log("Pin URL: " + data.url);
+                alert("🎉 Success! Pin created: " + data.url);
+            } else {
+                log("[ERROR ❌] Pin Posting Failed: " + data.error);
+                alert("❌ Error: " + data.error);
+            }
+        } catch (err) {
+            log("[CRITICAL ⚠️] Could not reach Local Agent: " + err.message);
+            alert("⚠️ Connection Error: Please ensure local_agent.py is running on your PC.");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "🚀 POST PIN NOW (Local Client Execution)";
+        }
+    }
+
+    // Check status on page load
+    checkAgentConnection();
+</script>
+
+</body>
+</html>
