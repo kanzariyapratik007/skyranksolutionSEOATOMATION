@@ -3,7 +3,7 @@
 SkyRank Local Agent Engine (Zero-Dependency HTTP Server on 127.0.0.1:8989)
 Runs on User's PC to bridge Web Portal commands to Local Selenium Browser Execution.
 """
-import sys, json, os, subprocess, urllib.request, re, threading, shutil
+import sys, json, os, subprocess, urllib.request, urllib.parse, re, threading, shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 
@@ -13,6 +13,40 @@ POST_SCRIPT = os.path.join(SCRIPT_DIR, "pinterest_post.py")
 CURRENT_TUNNEL_URL = None
 
 GIF_1X1 = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+
+
+def ensure_local_image(image_path, image_url, keyword):
+    if image_path and os.path.exists(image_path) and os.path.getsize(image_path) > 500:
+        return image_path
+
+    if image_url:
+        try:
+            local_img = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
+            req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response, open(local_img, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+            if os.path.exists(local_img) and os.path.getsize(local_img) > 500:
+                print(f"[Agent] Downloaded image from URL ({os.path.getsize(local_img)} bytes)", flush=True)
+                return local_img
+        except Exception as e:
+            print(f"[Agent] Warning: Could not download image URL: {e}", flush=True)
+
+    # Generate fallback local marketing image with PIL
+    try:
+        from PIL import Image, ImageDraw
+        img_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
+        img = Image.new('RGB', (1000, 1500), color=(15, 23, 42))
+        draw = ImageDraw.Draw(img)
+        draw.rectangle([50, 50, 950, 1450], outline=(59, 130, 246), width=8)
+        draw.rectangle([100, 200, 900, 400], fill=(30, 58, 138))
+        draw.rectangle([100, 500, 900, 1300], fill=(30, 41, 59))
+        img.save(img_path, "JPEG", quality=90)
+        print(f"[Agent] Generated fallback PIL marketing image at: {img_path}", flush=True)
+        return img_path
+    except Exception as e_pil:
+        print(f"[Agent] PIL fallback image generation error: {e_pil}", flush=True)
+
+    return image_path
 
 class AgentHandler(BaseHTTPRequestHandler):
     def address_string(self):
@@ -98,8 +132,7 @@ class AgentHandler(BaseHTTPRequestHandler):
                 payload = json.loads(post_data.decode('utf-8'))
             except Exception:
                 try:
-                    from urllib.parse import parse_qs
-                    parsed = parse_qs(post_data.decode('utf-8'))
+                    parsed = urllib.parse.parse_qs(post_data.decode('utf-8'))
                     payload = {k: v[0] for k, v in parsed.items()}
                 except Exception as e:
                     self._send_json_response(400, {"success": False, "error": f"Invalid payload: {e}"})
@@ -114,14 +147,8 @@ class AgentHandler(BaseHTTPRequestHandler):
             ai_title    = payload.get('ai_title', '')
             ai_content  = payload.get('ai_content', '')
 
-            # Download remote image URL if provided
-            if not image_path and image_url:
-                try:
-                    local_img = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
-                    urllib.request.urlretrieve(image_url, local_img)
-                    image_path = local_img
-                except Exception as e:
-                    print(f"[Agent] Warning: Could not download image URL: {e}", flush=True)
+            # Ensure local image path exists for upload
+            image_path = ensure_local_image(image_path, image_url, keyword)
 
 
             print(f"[Agent] Executing Pinterest post for: {email}...", flush=True)
