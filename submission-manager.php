@@ -2572,19 +2572,6 @@ function checkPcAgentWebSocketFallback() {
   }
 }
 
-  const script = document.createElement('script');
-  script.id = 'pcAgentScriptProbe';
-  script.src = 'http://127.0.0.1:8989/health_js?t=' + Date.now();
-  script.onerror = function() {
-    if (!scriptDetected) setPcAgentOffline();
-  };
-  document.head.appendChild(script);
-
-  setTimeout(() => {
-    if (!scriptDetected) setPcAgentOffline();
-  }, 1200);
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   checkPcAgentStatus();
   setInterval(checkPcAgentStatus, 5000);
