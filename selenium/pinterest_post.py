@@ -89,7 +89,7 @@ def get_driver(email="default", proxy=None):
 
     target_default = os.path.join(profile_dir, 'Default')
     zip_path = os.path.join(script_dir, 'pinterest_cookies.zip')
-    if (not os.path.exists(target_default) or not os.listdir(target_default)) and os.path.exists(zip_path):
+    if "newlmt97" in email.lower() and (not os.path.exists(target_default) or not os.listdir(target_default)) and os.path.exists(zip_path):
         try:
             log("Restoring saved login session cookies from pinterest_cookies.zip...")
             os.makedirs(target_default, mode=0o777, exist_ok=True)
@@ -324,7 +324,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     var b = document.querySelector("[data-test-id='registerFormSubmitButton'], button[type='submit']");
                     if (b) b.click();
                 """)
+            try:
                 pass_field.send_keys(Keys.ENTER)
+            except Exception:
+                pass
 
             log("Waiting for authentication redirect...")
             time.sleep(4)
