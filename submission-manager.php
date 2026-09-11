@@ -1400,12 +1400,15 @@ $secondBoxList = array_slice($orderedSitesList, 10);
       <p class="text-muted">Provide user credentials → System will post automatically</p>
     </div>
     <div class="col-auto d-flex align-items-center gap-2">
-      <!-- PC Agent Connection Badge & Tunnel Setting -->
-      <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="promptPcAgentUrl()" title="Click to configure PC Agent HTTPS Tunnel URL">
+      <!-- PC Agent Connection Badge & Download Button -->
+      <a href="download-agent.php" class="btn btn-sm btn-primary fw-bold shadow-sm" title="Download portable 1-click PC Agent for your computer">
+        <i class="fas fa-download me-1"></i>Download PC Agent
+      </a>
+      <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="promptPcAgentUrl()" title="Click to configure PC Agent HTTPS Tunnel URL or test connection">
         <span class="spinner-border spinner-border-sm me-1"></span>Checking PC Agent...
       </div>
-      <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="promptPcAgentUrl()">
-        <i class="fas fa-link me-1"></i>Set Tunnel URL
+      <button type="button" class="btn btn-sm btn-outline-secondary fw-bold shadow-sm" onclick="promptPcAgentUrl()" title="Configure Custom Tunnel / Remote PC URL">
+        <i class="fas fa-cog me-1"></i>Settings
       </button>
       <!-- Project selector -->
       <select class="form-select" onchange="location.href='submission-manager.php?project_id='+this.value">
@@ -2655,8 +2658,8 @@ function setPcAgentOnline(url, label) {
     const isHttps = url.startsWith('https://');
     badge.className = 'badge ' + (isHttps ? 'bg-primary' : 'bg-success') + ' p-2 shadow-sm';
     badge.style.cursor = 'pointer';
-    badge.innerHTML = '<i class="fas ' + (isHttps ? 'fa-lock' : 'fa-desktop') + ' me-1"></i>🟢 PC Agent: ' + (label || (isHttps ? 'HTTPS Tunnel' : 'Connected')) + ' <i class="fas fa-cog ms-1 opacity-75"></i>';
-    badge.title = 'Click to configure PC Agent HTTPS Tunnel URL. Running on ' + url;
+    badge.innerHTML = '<i class="fas ' + (isHttps ? 'fa-lock' : 'fa-desktop') + ' me-1"></i>🟢 PC Agent: ' + (label || (isHttps ? 'HTTPS Tunnel' : 'Connected (Your PC)')) + ' <i class="fas fa-check-circle ms-1"></i>';
+    badge.title = 'Running on ' + url + ' (Your computer)';
   }
 }
 
@@ -2666,8 +2669,8 @@ function setPcAgentOffline() {
   if (badge) {
     badge.className = 'badge bg-danger p-2 shadow-sm';
     badge.style.cursor = 'pointer';
-    badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline <i class="fas fa-cog ms-1 opacity-75"></i>';
-    badge.title = 'Click to set HTTPS Tunnel URL or start run_local_agent.bat on PC';
+    badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline (Start .bat)';
+    badge.title = 'Start run_local_agent.bat on your PC or click Download PC Agent above';
   }
 }
 
