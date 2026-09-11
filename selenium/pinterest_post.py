@@ -774,9 +774,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         # Close popovers
         try:
-            driver.execute_script("try{ document.body.click(); }catch(e){}")
             ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-            time.sleep(1.5)
+            time.sleep(1)
         except Exception:
             pass
 
@@ -794,15 +793,20 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pubBtn = btns.find(function(b) {
                         var t = (b.innerText || b.textContent || '').trim().toLowerCase();
                         var dt = (b.getAttribute('data-test-id') || '').toLowerCase();
-                        return (t === 'publish' || t === 'save' || dt.indexOf('save-button') !== -1 || dt.indexOf('publish') !== -1) && b.offsetWidth > 0 && b.offsetHeight > 0;
+                        return (t === 'publish' || t === 'save' || t === 'done' || dt.indexOf('save-button') !== -1 || dt.indexOf('publish') !== -1);
                     });
                 }
                 if (pubBtn) {
+                    pubBtn.disabled = false;
+                    pubBtn.removeAttribute('disabled');
                     pubBtn.scrollIntoView({block: 'center'});
                     ['mousedown', 'mouseup', 'click'].forEach(function(evtName) {
                         var evt = new MouseEvent(evtName, { bubbles: true, cancelable: true, view: window });
                         pubBtn.dispatchEvent(evt);
                     });
+                    try { pubBtn.click(); } catch(e) {}
+                    var form = pubBtn.closest('form');
+                    if (form) { try { form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); } catch(e) {} }
                     return true;
                 }
                 return false;
