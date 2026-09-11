@@ -351,6 +351,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     driver.quit()
                 except Exception:
                     pass
+                try:
+                    import shutil
+                    if os.path.exists(profile_dir):
+                        shutil.rmtree(profile_dir, ignore_errors=True)
+                        log("Cleared failed login profile for clean retry.")
+                except Exception:
+                    pass
                 result(False, error=err_text)
                 return
 
