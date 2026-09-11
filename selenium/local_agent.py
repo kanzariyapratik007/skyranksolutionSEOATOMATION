@@ -176,6 +176,9 @@ class AgentHandler(BaseHTTPRequestHandler):
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                 stdout = proc.stdout or ""
                 stderr = proc.stderr or ""
+                print(f"[Pinterest Script Log]:\n{stdout}", flush=True)
+                if stderr:
+                    print(f"[Pinterest Script Stderr]:\n{stderr}", flush=True)
                 
                 # Extract json result line
                 last_line = ""
