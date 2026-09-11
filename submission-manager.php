@@ -2506,34 +2506,52 @@ function setPcAgentOffline() {
 }
 
 function checkPcAgentStatus() {
-  // 1. Try standard CORS fetch on 127.0.0.1
-  fetch('http://127.0.0.1:8989/health', { signal: AbortSignal.timeout(2000) })
+  const badge = document.getElementById('pcAgentBadge');
+  console.log('[SkyRank Bridge] Checking PC Agent health...');
+
+  const safeFetch = (url, opts) => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timeout')), 2500);
+      fetch(url, opts || {})
+        .then(r => { clearTimeout(timer); resolve(r); })
+        .catch(err => { clearTimeout(timer); reject(err); });
+    });
+  };
+
+  // 1. Try JSON CORS fetch on 127.0.0.1
+  safeFetch('http://127.0.0.1:8989/health')
     .then(r => r.json())
     .then(data => {
       if (data && data.status === 'active') {
+        console.log('[SkyRank Bridge] Connected via 127.0.0.1 CORS');
         setPcAgentOnline('http://127.0.0.1:8989');
       } else {
         setPcAgentOffline();
       }
     })
-    .catch(() => {
-      // 2. Fallback: Try localhost
-      fetch('http://localhost:8989/health', { signal: AbortSignal.timeout(2000) })
+    .catch(err => {
+      console.log('[SkyRank Bridge] 127.0.0.1 CORS failed:', err.message);
+      // 2. Try localhost CORS fetch
+      safeFetch('http://localhost:8989/health')
         .then(r => r.json())
         .then(data => {
           if (data && data.status === 'active') {
+            console.log('[SkyRank Bridge] Connected via localhost CORS');
             setPcAgentOnline('http://localhost:8989');
           } else {
             setPcAgentOffline();
           }
         })
-        .catch(() => {
-          // 3. Fallback: Try no-cors mode (proves local server port 8989 is listening)
-          fetch('http://127.0.0.1:8989/health', { mode: 'no-cors', signal: AbortSignal.timeout(2000) })
-            .then(() => {
+        .catch(err2 => {
+          console.log('[SkyRank Bridge] localhost CORS failed:', err2.message);
+          // 3. Try no-cors probe
+          safeFetch('http://127.0.0.1:8989/health', { mode: 'no-cors' })
+            .then(r => {
+              console.log('[SkyRank Bridge] Connected via no-cors probe');
               setPcAgentOnline('http://127.0.0.1:8989');
             })
-            .catch(() => {
+            .catch(err3 => {
+              console.log('[SkyRank Bridge] All probes failed:', err3.message);
               setPcAgentOffline();
             });
         });
