@@ -44,6 +44,126 @@ def ensure_local_image(image_path, image_url, keyword):
 
     return image_path
 
+import queue, time, random
+
+TASK_QUEUE = queue.Queue()
+COMPLETED_TASKS = {}
+CURRENT_TASK = None
+TASK_COUNTER = 0
+
+def execute_single_task(task):
+    global COMPLETED_TASKS
+    task_id     = task.get('task_id', 'unknown')
+    platform    = task.get('platform', 'pinterest').lower()
+    email       = task.get('email', '')
+    password    = task.get('password', '')
+    keyword     = task.get('keyword', 'SEO')
+    target_site = task.get('target_site', 'https://example.com')
+    image_path  = task.get('image_path', '')
+    image_url   = task.get('image_url', '')
+    ai_title    = task.get('ai_title') or task.get('title') or ''
+    ai_content  = task.get('ai_content') or task.get('ai_desc') or task.get('description') or ''
+    project_id  = task.get('project_id', 0)
+    callback_url = task.get('callback_url') or 'http://52.55.247.39/submission-manager.php?action=save_local_backlink'
+
+    print(f"\n==================================================", flush=True)
+    print(f" [Queue Worker] Starting Task #{task_id} ({platform.upper()})", flush=True)
+    print(f" Project ID: {project_id} | Account: {email}", flush=True)
+    print(f" Keyword: {keyword} | Target URL: {target_site}", flush=True)
+    print(f"==================================================\n", flush=True)
+
+    # 1. Ensure local image
+    image_path = ensure_local_image(image_path, image_url, keyword)
+    if not image_path or not os.path.exists(image_path) or os.path.getsize(image_path) < 500:
+        res_data = {"success": False, "error": "❌ No uploaded image found for this project."}
+        COMPLETED_TASKS[task_id] = res_data
+        print(f"[Queue Worker] Task #{task_id} Failed: No image found", flush=True)
+        return res_data
+
+    # 2. Select platform script
+    python_exe = sys.executable or "python"
+    target_script = POST_SCRIPT
+    if platform == 'mastodon':
+        target_script = os.path.join(SCRIPT_DIR, "mastodon_setup_playwright.py")
+    elif platform == 'symbaloo':
+        target_script = os.path.join(SCRIPT_DIR, "symbaloo_post_playwright.py")
+    elif platform == 'livejournal':
+        target_script = os.path.join(SCRIPT_DIR, "livejournal_post_playwright.py")
+    elif platform == 'minds':
+        target_script = os.path.join(SCRIPT_DIR, "minds_post_playwright.py")
+
+    cmd = [
+        python_exe, target_script,
+        email, password, keyword, target_site,
+        image_path or "", ai_title or "", ai_content or ""
+    ]
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        print(f"[Platform Script Log]:\n{stdout}", flush=True)
+        if stderr:
+            print(f"[Platform Script Stderr]:\n{stderr}", flush=True)
+        
+        # Extract json result line
+        last_line = ""
+        for line in stdout.splitlines():
+            line_str = line.strip()
+            if line_str.startswith("{") and "success" in line_str:
+                last_line = line_str
+
+        if last_line:
+            res_data = json.loads(last_line)
+        else:
+            res_data = {"success": False, "error": f"Process exited without result JSON. Stderr: {stderr[:200]}"}
+
+    except subprocess.TimeoutExpired:
+        res_data = {"success": False, "error": "Execution timed out after 300 seconds"}
+    except Exception as e:
+        res_data = {"success": False, "error": str(e)}
+
+    COMPLETED_TASKS[task_id] = res_data
+
+    # 3. Direct HTTP Auto-Save Callback to AWS Portal DB
+    if res_data.get('success') and res_data.get('url'):
+        try:
+            print(f"[Queue Worker] Auto-saving created backlink to AWS Portal: {res_data.get('url')} ...", flush=True)
+            cb_payload = urllib.parse.urlencode({
+                'project_id': project_id,
+                'platform': platform,
+                'url': res_data.get('url'),
+                'keyword': keyword,
+                'target_site': target_site,
+                'post_title': ai_title
+            }).encode('utf-8')
+            cb_req = urllib.request.Request(callback_url, data=cb_payload, headers={'User-Agent': 'SkyRank-PC-Agent'})
+            with urllib.request.urlopen(cb_req, timeout=10) as cb_resp:
+                print(f"[Queue Worker] ✅ Successfully Saved to AWS Database Reports! ({res_data.get('url')})", flush=True)
+        except Exception as cb_err:
+            print(f"[Queue Worker] Note: Callback to AWS server failed: {cb_err}", flush=True)
+
+    return res_data
+
+def background_queue_worker():
+    global CURRENT_TASK
+    print("[Agent] Background Task Queue Worker Thread Started.", flush=True)
+    while True:
+        try:
+            task = TASK_QUEUE.get()
+            CURRENT_TASK = task
+            execute_single_task(task)
+        except Exception as e:
+            print(f"[Queue Worker Error]: {e}", flush=True)
+        finally:
+            CURRENT_TASK = None
+            TASK_QUEUE.task_done()
+            time.sleep(1)
+
+# Start background queue thread
+worker_thread = threading.Thread(target=background_queue_worker, daemon=True)
+worker_thread.start()
+
 class AgentHandler(BaseHTTPRequestHandler):
     def address_string(self):
         return self.client_address[0]
@@ -107,7 +227,22 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == '/health' or self.path == '/':
-            res = {"status": "active", "agent": "SkyRank Local Engine", "port": PORT, "tunnel_url": CURRENT_TUNNEL_URL}
+            res = {
+                "status": "active",
+                "agent": "SkyRank Local Engine",
+                "port": PORT,
+                "tunnel_url": CURRENT_TUNNEL_URL,
+                "queue_length": TASK_QUEUE.qsize(),
+                "is_busy": bool(CURRENT_TASK)
+            }
+            self._send_json_response(200, res)
+        elif self.path == '/queue_status':
+            res = {
+                "status": "active",
+                "running_task": CURRENT_TASK.get('task_id') if CURRENT_TASK else None,
+                "queue_length": TASK_QUEUE.qsize(),
+                "completed_count": len(COMPLETED_TASKS)
+            }
             self._send_json_response(200, res)
         elif self.path == '/tunnel':
             res = {"status": "active", "tunnel_url": CURRENT_TUNNEL_URL}
@@ -119,7 +254,8 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        if self.path == '/run_pin':
+        global TASK_COUNTER
+        if self.path in ['/run_pin', '/queue_task']:
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
@@ -134,110 +270,42 @@ class AgentHandler(BaseHTTPRequestHandler):
                     self._send_json_response(400, {"success": False, "error": f"Invalid payload: {e}"})
                     return
 
-            email       = payload.get('email', '')
-            password    = payload.get('password', '')
-            keyword     = payload.get('keyword', 'SEO')
-            target_site = payload.get('target_site', 'https://example.com')
-            image_path  = payload.get('image_path', '')
-            image_url   = payload.get('image_url', '')
-            ai_title    = payload.get('ai_title') or payload.get('title') or ''
-            ai_content  = payload.get('ai_content') or payload.get('ai_desc') or payload.get('description') or ''
+            TASK_COUNTER += 1
+            task_id = f"task_{int(time.time())}_{TASK_COUNTER}"
+            payload['task_id'] = task_id
+            
+            # Put task into Background Queue
+            TASK_QUEUE.put(payload)
+            queue_pos = TASK_QUEUE.qsize() + (1 if CURRENT_TASK else 0)
+
+            print(f"[Agent] ✅ Task #{task_id} added to Queue! (Position #{queue_pos} in line, Account: {payload.get('email')})", flush=True)
+
+            res_data = {
+                "success": true,
+                "status": "queued",
+                "task_id": task_id,
+                "queue_pos": queue_pos,
+                "email": payload.get('email', ''),
+                "platform": payload.get('platform', 'pinterest'),
+                "message": f"Task queued successfully! Position #{queue_pos} in background queue."
+            }
 
             is_form = 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', '')
 
-            # Ensure local image path exists for upload (Strictly NO AI image fallbacks)
-            image_path = ensure_local_image(image_path, image_url, keyword)
-
-            if not image_path or not os.path.exists(image_path) or os.path.getsize(image_path) < 500:
-                err_res = {"success": False, "error": "❌ No uploaded image found for this project. Please upload an image first before auto posting."}
-                if is_form:
-                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_res)});}}</script></body></html>".encode('utf-8')
-                    self.send_response(400)
-                    self._send_cors_headers()
-                    self.send_header('Content-Type', 'text/html')
-                    self.send_header('Content-Length', str(len(html_body)))
-                    self.send_header('Connection', 'close')
-                    self.end_headers()
-                    self.wfile.write(html_body)
-                else:
-                    self._send_json_response(400, err_res)
-                return
-
-            print(f"[Agent] Executing Pinterest post for: {email}...", flush=True)
-
-            python_exe = sys.executable or "python"
-            cmd = [
-                python_exe, POST_SCRIPT,
-                email, password, keyword, target_site,
-                image_path or "", ai_title or "", ai_content or ""
-            ]
-
-            try:
-                proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-                stdout = proc.stdout or ""
-                stderr = proc.stderr or ""
-                print(f"[Pinterest Script Log]:\n{stdout}", flush=True)
-                if stderr:
-                    print(f"[Pinterest Script Stderr]:\n{stderr}", flush=True)
-                
-                # Extract json result line
-                last_line = ""
-                for line in stdout.splitlines():
-                    line_str = line.strip()
-                    if line_str.startswith("{") and "success" in line_str:
-                        last_line = line_str
-
-                if last_line:
-                    res_data = json.loads(last_line)
-                else:
-                    res_data = {"success": False, "error": f"Process exited without result JSON. Stderr: {stderr[:200]}"}
-
-                if is_form:
-                    html_body = f"""<!DOCTYPE html><html><body><script>
-                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(res_data)} }}, '*'); }} catch(e) {{}}
-                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(res_data)}); }} catch(e) {{}}
-                    </script></body></html>""".encode('utf-8')
-                    self.send_response(200)
-                    self._send_cors_headers()
-                    self.send_header('Content-Type', 'text/html')
-                    self.send_header('Content-Length', str(len(html_body)))
-                    self.send_header('Connection', 'close')
-                    self.end_headers()
-                    self.wfile.write(html_body)
-                else:
-                    self._send_json_response(200, res_data)
-
-            except subprocess.TimeoutExpired:
-                err_payload = {"success": False, "error": "Execution timed out after 300 seconds"}
-                if is_form:
-                    html_body = f"""<!DOCTYPE html><html><body><script>
-                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(err_payload)} }}, '*'); }} catch(e) {{}}
-                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(err_payload)}); }} catch(e) {{}}
-                    </script></body></html>""".encode('utf-8')
-                    self.send_response(504)
-                    self._send_cors_headers()
-                    self.send_header('Content-Type', 'text/html')
-                    self.send_header('Content-Length', str(len(html_body)))
-                    self.end_headers()
-                    self.wfile.write(html_body)
-                else:
-                    self._send_json_response(504, err_payload)
-
-            except Exception as e:
-                err_payload = {"success": False, "error": str(e)}
-                if is_form:
-                    html_body = f"""<!DOCTYPE html><html><body><script>
-                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(err_payload)} }}, '*'); }} catch(e) {{}}
-                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(err_payload)}); }} catch(e) {{}}
-                    </script></body></html>""".encode('utf-8')
-                    self.send_response(500)
-                    self._send_cors_headers()
-                    self.send_header('Content-Type', 'text/html')
-                    self.send_header('Content-Length', str(len(html_body)))
-                    self.end_headers()
-                    self.wfile.write(html_body)
-                else:
-                    self._send_json_response(500, err_payload)
+            if is_form:
+                html_body = f"""<!DOCTYPE html><html><body><script>
+                try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(res_data)} }}, '*'); }} catch(e) {{}}
+                try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(res_data)}); }} catch(e) {{}}
+                </script></body></html>""".encode('utf-8')
+                self.send_response(200)
+                self._send_cors_headers()
+                self.send_header('Content-Type', 'text/html')
+                self.send_header('Content-Length', str(len(html_body)))
+                self.send_header('Connection', 'close')
+                self.end_headers()
+                self.wfile.write(html_body)
+            else:
+                self._send_json_response(200, res_data)
         else:
             self.send_response(404)
             self.send_header('Content-Length', '0')

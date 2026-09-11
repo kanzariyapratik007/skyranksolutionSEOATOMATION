@@ -2797,11 +2797,49 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(checkPcAgentStatus, 5000);
 });
 
+function showSkyRankToast(message, type = 'success') {
+  let toastContainer = document.getElementById('skyRankToastContainer');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'skyRankToastContainer';
+    toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    toastContainer.style.zIndex = '9999';
+    document.body.appendChild(toastContainer);
+  }
+
+  const toastId = 'toast_' + Date.now();
+  const bgClass = type === 'success' ? 'bg-success text-white' : (type === 'warning' ? 'bg-warning text-dark' : 'bg-danger text-white');
+  const icon = type === 'success' ? 'fa-check-circle' : (type === 'warning' ? 'fa-clock' : 'fa-exclamation-circle');
+
+  const toastEl = document.createElement('div');
+  toastEl.id = toastId;
+  toastEl.className = `toast align-items-center ${bgClass} border-0 shadow-lg`;
+  toastEl.setAttribute('role', 'alert');
+  toastEl.setAttribute('aria-live', 'assertive');
+  toastEl.setAttribute('aria-atomic', 'true');
+  toastEl.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body fw-bold" style="font-size: 13.5px;">
+        <i class="fas ${icon} me-2 fa-lg"></i>${message}
+      </div>
+      <button type="button" class="btn-close ${type==='warning'?'':'btn-close-white'} me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+
+  toastContainer.appendChild(toastEl);
+  const bsToast = new bootstrap.Toast(toastEl, { delay: 6000 });
+  bsToast.show();
+  toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
 function runLocalAgentPost(platformId, platformName, projectId, accountId) {
-  const modal = new bootstrap.Modal(document.getElementById('postModal'));
-  document.getElementById('postingStatus').innerHTML = `🚀 Preparing ${platformName} Auto-Post...`;
-  document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Fetching credentials from AWS Database & generating AI title/image...`;
-  modal.show();
+  const modalEl = document.getElementById('postModal');
+  const modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+  if (modal) {
+    document.getElementById('postingStatus').innerHTML = `🚀 Adding ${platformName} to PC Agent Queue...`;
+    document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Fetching credentials from AWS Database...`;
+    modal.show();
+  }
 
   const kwSelect = document.getElementById('backlinkKeywordSelect');
   const kw = kwSelect ? encodeURIComponent(kwSelect.value) : '';
@@ -2824,31 +2862,27 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
         throw new Error(data.error || 'Failed to fetch credentials from DB');
       }
 
-      document.getElementById('postingStatus').innerHTML = `🤖 Opening Chrome on your PC...`;
-      document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Running Selenium on your PC for account <strong>${data.email}</strong>... Please do not close Chrome.`;
+      data.project_id = curProjId;
+      data.platform = platformId;
 
-      // Callback handler when PC Agent completes
+      // Callback handler when PC Agent queues or completes
       window.onLocalAgentPinResult = function(result) {
-        if (result && result.success) {
-          document.getElementById('postingStatus').innerHTML = `✅ Successfully Posted to ${platformName}!`;
-          document.getElementById('postingDetail').innerHTML = `<strong>Pin Created:</strong> <a href="${result.url}" target="_blank" class="fw-bold">${result.url}</a><br><span class="text-success mt-1 d-inline-block"><i class="fas fa-check-circle me-1"></i>Saved to AWS Database Reports!</span>`;
-
-          const fd = new FormData();
-          fd.append('project_id', curProjId);
-          fd.append('platform', platformId);
-          if (result && result.url) fd.append('url', result.url);
-          if (data && data.keyword) fd.append('keyword', data.keyword);
-          if (data && data.target_site) fd.append('target_site', data.target_site);
-          if (data && data.ai_title) fd.append('post_title', data.ai_title);
-          fetch('submission-manager.php?action=save_local_backlink', {
-            method: 'POST',
-            body: fd
-          }).then(() => refreshBacklinkTables());
-
-          setTimeout(() => { modal.hide(); }, 4000);
+        if (result && (result.status === 'queued' || result.success)) {
+          const queueMsg = `✅ Task Queued in PC Agent! (Queue Position: #${result.queue_pos || 1})`;
+          showSkyRankToast(`🚀 <strong>${platformName} (${data.email})</strong> Queued in PC Agent! Position #${result.queue_pos || 1} in background line.`, 'success');
+          
+          if (modal) {
+            document.getElementById('postingStatus').innerHTML = `✅ Queued in PC Agent!`;
+            document.getElementById('postingDetail').innerHTML = `<span class="badge bg-success p-2 mb-1"><i class="fas fa-check-circle me-1"></i>Queue Position: #${result.queue_pos || 1}</span><br><small class="text-muted">PC Agent is processing this in background. You can now switch projects or queue more accounts!</small>`;
+            setTimeout(() => { modal.hide(); }, 1200);
+          }
+          refreshBacklinkTables();
         } else {
-          document.getElementById('postingStatus').innerHTML = `❌ Posting Failed`;
-          document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${(result ? result.error : 'Execution failed on PC')}</div>`;
+          showSkyRankToast(`❌ ${platformName} Queue Error: ` + (result ? result.error : 'Agent unreachable'), 'danger');
+          if (modal) {
+            document.getElementById('postingStatus').innerHTML = `❌ Queue Error`;
+            document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${(result ? result.error : 'Execution failed on PC')}</div>`;
+          }
         }
       };
 
@@ -2864,8 +2898,11 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
       postViaAgentForm(data);
     })
     .catch(err => {
-      document.getElementById('postingStatus').innerHTML = `⚠️ Local Post Error`;
-      document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${err.message}</div>`;
+      showSkyRankToast(`⚠️ Local Post Error: ${err.message}`, 'danger');
+      if (modal) {
+        document.getElementById('postingStatus').innerHTML = `⚠️ Local Post Error`;
+        document.getElementById('postingDetail').innerHTML = `<div class="alert alert-danger py-2 mb-0">${err.message}</div>`;
+      }
     });
 }
 
