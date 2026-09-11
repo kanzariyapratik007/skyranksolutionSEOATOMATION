@@ -533,7 +533,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         try:
             desc_filled = driver.execute_script("""
                 var val = arguments[0];
-                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], [data-test-id='description-field'], #storyboard-selector-description, .public-DraftEditor-editor";
+                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], [data-test-id='description-field'] [contenteditable='true'], #storyboard-selector-description, .public-DraftEditor-editor";
                 var el = document.querySelector(sel);
                 if (!el) {
                     var elems = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
@@ -561,19 +561,50 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
                         var setter = Object.getOwnPropertyDescriptor(proto, 'value');
                         if (setter && setter.set) setter.set.call(el, val); else el.value = val;
+                        el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
                     } else {
-                        try { el.innerText = val; } catch(e) { el.textContent = val; }
+                        try {
+                            document.execCommand('selectAll', false, null);
+                            document.execCommand('insertText', false, val);
+                        } catch(e) {
+                            try { el.innerText = val; } catch(e2) { el.textContent = val; }
+                        }
+                        el.dispatchEvent(new InputEvent('input', {bubbles: true, composed: true, inputType: 'insertText', data: val}));
+                        el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
                     }
-                    el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
-                    el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
                     return true;
                 }
                 return false;
             """, desc)
             if desc_filled:
-                log("Description OK!")
+                log("Description element focused and insertText executed!")
             else:
                 log("Description element not found via selectors")
+
+            # Fallback check and ActionChains typing to guarantee DraftJS editor state in React
+            time.sleep(0.5)
+            try:
+                cur_text = driver.execute_script("""
+                    var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor";
+                    var el = document.querySelector(sel) || document.activeElement;
+                    return el ? (el.innerText || el.textContent || el.value || '') : '';
+                """)
+                log(f"Current DOM description text length: {len(cur_text.strip())}")
+                if len(cur_text.strip()) < 5:
+                    log("Description text still empty, attempting Selenium ActionChains typing fallback...")
+                    desc_elems = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor, div[contenteditable='true']")
+                    if desc_elems:
+                        for de in desc_elems:
+                            if de.is_displayed():
+                                js_click(driver, de)
+                                time.sleep(0.3)
+                                ActionChains(driver).send_keys(desc).perform()
+                                time.sleep(0.5)
+                                log("Typed description via ActionChains send_keys fallback!")
+                                break
+            except Exception as e_ac:
+                log(f"ActionChains desc fallback note: {e_ac}")
         except Exception as e:
             log(f"Desc: {e}")
 
@@ -820,7 +851,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             """)
             if click_success:
                 log("Clicked Publish button via JS synthetic mouse events!")
-                time.sleep(8)
                 published = True
         except Exception as e_js_pub:
             log(f"JS publish click note: {e_js_pub}")
@@ -838,7 +868,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     for el in elems:
                         if el and el.is_displayed():
                             js_click(driver, el)
-                            time.sleep(8)
                             log(f"Published via selector '{sel}'!")
                             published = True
                             break
@@ -847,38 +876,87 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 except Exception:
                     pass
 
-        # ── Step 9: Get URL ────────────────────────────────────────
-        time.sleep(3)
-        for i in range(35):
+        # ── Step 9: Monitor Pin Creation & Extract URL ────────────
+        log("Checking for Pin creation confirmation...")
+        pin_url_found = None
+
+        for i in range(40): # Poll every 0.5s for 20s immediately after publish
             cu = (driver.current_url or '').lower()
-            if "/pin/" in cu:
-                log(f"Pin created successfully! URL: {driver.current_url}")
-                result(True, url=driver.current_url)
-                return
-                
-            # Check created pin toast or links in DOM
+            if "/pin/" in cu and "/pin-builder" not in cu:
+                pin_url_found = driver.current_url
+                log(f"Pin created successfully (URL redirect)! URL: {pin_url_found}")
+                break
+
+            # Search DOM for created Pin link or toast element
             try:
-                links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/pin/']")
-                for l in links:
-                    href = l.get_attribute('href')
-                    if href and '/pin/' in href:
-                        log(f"Pin created successfully! URL: {href}")
-                        result(True, url=href)
-                        return
+                found_link = driver.execute_script("""
+                    var sel = "a[href*='/pin/'], div[role='alert'] a, div[data-test-id*='toast'] a, div[aria-label*='toast' i] a, button[aria-label*='Pin' i] a";
+                    var elems = Array.from(document.querySelectorAll(sel));
+                    for (var el of elems) {
+                        var href = el.getAttribute('href') || el.href || '';
+                        if (href && href.indexOf('/pin/') !== -1 && href.indexOf('/pin-builder') === -1) {
+                            return href;
+                        }
+                    }
+                    return null;
+                """)
+                if found_link:
+                    if not found_link.startswith('http'):
+                        found_link = f"https://www.pinterest.com{found_link}"
+                    pin_url_found = found_link
+                    log(f"Pin created successfully (toast/DOM link)! URL: {pin_url_found}")
+                    break
+            except Exception as e_link:
+                log(f"DOM link check note: {e_link}")
+
+            # Check page source for /pin/123456789
+            try:
+                page = driver.page_source
+                pin_ids = re.findall(r'/pin/(\d{10,20})', page)
+                if pin_ids:
+                    pin_url_found = f"https://www.pinterest.com/pin/{pin_ids[0]}/"
+                    log(f"Pin created successfully (page source ID)! URL: {pin_url_found}")
+                    break
             except Exception:
                 pass
 
-            page = driver.page_source
-            pin_ids = re.findall(r'/pin/(\d+)', page)
-            if pin_ids:
-                full_pin_url = f"https://www.pinterest.com/pin/{pin_ids[0]}/"
-                log(f"Pin created successfully! URL: {full_pin_url}")
-                result(True, url=full_pin_url)
-                return
+            time.sleep(0.5)
 
-            time.sleep(2)
+        # Fallback check: If URL not found via toast or current_url within 20s, navigate to user profile created pins!
+        if not pin_url_found:
+            log("Pin toast URL not found in 20s — navigating to profile created pins to fetch newly published Pin URL...")
+            try:
+                driver.get("https://www.pinterest.com/me/")
+                time.sleep(4)
+                profile_link = driver.execute_script("""
+                    var elems = Array.from(document.querySelectorAll("a[href*='/pin/']"));
+                    for (var el of elems) {
+                        var href = el.getAttribute('href') || el.href || '';
+                        if (href && href.indexOf('/pin/') !== -1 && href.indexOf('/pin-builder') === -1) {
+                            return href;
+                        }
+                    }
+                    return null;
+                """)
+                if profile_link:
+                    if not profile_link.startswith('http'):
+                        profile_link = f"https://www.pinterest.com{profile_link}"
+                    pin_url_found = profile_link
+                    log(f"Pin created successfully (profile check)! URL: {pin_url_found}")
+                else:
+                    page = driver.page_source
+                    pin_ids = re.findall(r'/pin/(\d{10,20})', page)
+                    if pin_ids:
+                        pin_url_found = f"https://www.pinterest.com/pin/{pin_ids[0]}/"
+                        log(f"Pin created successfully (profile page source)! URL: {pin_url_found}")
+            except Exception as e_prof:
+                log(f"Profile check error: {e_prof}")
 
-        result(False, error="Pin creation could not be verified on Pinterest. Please check if Pinterest requested board selection, title, or captcha.")
+        if pin_url_found:
+            result(True, url=pin_url_found)
+            return
+        else:
+            result(False, error="Pin creation could not be verified on Pinterest. Please check if Pinterest requested board selection, title, or captcha.")
 
 
     except Exception as e:
