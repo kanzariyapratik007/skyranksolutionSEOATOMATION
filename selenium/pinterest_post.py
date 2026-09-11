@@ -94,7 +94,14 @@ def get_driver(email="default", proxy=None):
         except Exception as e_zip:
             log(f"Cookie restore error: {e_zip}")
 
-    # Clean up lock files from any previous crashed runs to prevent startup crash
+    # Clean up lock files and zombie Chrome processes from any previous crashed runs to prevent startup socket error
+    if sys.platform != "win32":
+        try:
+            os.system(f"pkill -9 -f '{profile_dir}' 2>/dev/null")
+            time.sleep(0.3)
+        except Exception:
+            pass
+
     if os.path.exists(profile_dir):
         for root, dirs, files in os.walk(profile_dir):
             for f in files:
