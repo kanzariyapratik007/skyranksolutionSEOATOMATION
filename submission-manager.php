@@ -2564,7 +2564,6 @@ try {
     }
 } catch (Throwable $e) {}
 ?>
-<script>
 const AUTO_TUNNEL_URL = <?= json_encode($autoTunnelUrl) ?>;
 if (AUTO_TUNNEL_URL && AUTO_TUNNEL_URL.startsWith('https://')) {
     localStorage.setItem('skyrank_pc_agent_url', AUTO_TUNNEL_URL);
