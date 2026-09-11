@@ -237,15 +237,18 @@ def js_set_value(driver, el, value):
 def set_input_value(driver, el, value):
     js_set_value(driver, el, value)
 
-def safe_get(driver, url, max_retries=3, delay=3):
+def safe_get(driver, url, max_retries=4, delay=4):
     for i in range(max_retries):
         try:
             log(f"Navigating to {url} (Attempt {i+1}/{max_retries})...")
             driver.get(url)
             time.sleep(delay)
             current = (driver.current_url or '').lower()
-            if "neterror" not in current and "chrome-error" not in current:
+            page_src = (driver.page_source or '').lower()
+            if "neterror" not in current and "chrome-error" not in current and "err_name_not_resolved" not in page_src:
                 return True
+            log(f"DNS/Network error detected, retrying in {delay * (i + 1)}s...")
+            time.sleep(delay * (i + 1))
         except Exception as e:
             log(f"Navigation attempt {i+1} failed: {e}")
             time.sleep(delay * (i + 1))
