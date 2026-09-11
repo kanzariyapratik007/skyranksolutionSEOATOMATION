@@ -213,6 +213,7 @@ def js_set_value(driver, el, value):
     driver.execute_script("""
         var el = arguments[0], val = arguments[1];
         if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            el.focus();
             var proto = (el.tagName === 'TEXTAREA') ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
             var descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
             if (descriptor && descriptor.set) {
@@ -220,12 +221,15 @@ def js_set_value(driver, el, value):
             } else {
                 el.value = val;
             }
-            if (el._valueTracker) { el._valueTracker.setValue(val); }
-            el.dispatchEvent(new Event('input', {bubbles: true}));
-            el.dispatchEvent(new Event('change', {bubbles: true}));
+            if (el._valueTracker) {
+                el._valueTracker.setValue('');
+            }
+            el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+            el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+            el.dispatchEvent(new Event('blur', {bubbles: true, composed: true}));
         } else {
             try { el.innerText = val; } catch(e) { el.textContent = val; }
-            el.dispatchEvent(new Event('input', {bubbles: true}));
+            el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
         }
     """, el, value)
 
@@ -242,7 +246,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
     try:
         log("Checking login status...")
-        driver.get("https://www.pinterest.com/")
+        driver.get("https://www.pinterest.com/pin-builder/")
         time.sleep(3)
 
         # Check if already logged in (has profile icon, feed, or _auth=1 cookie)
@@ -250,8 +254,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         already_logged = (cookies.get('_auth') == '1' or
                           ("pinterest.com" in driver.current_url and
                            "login" not in driver.current_url and
-                           len(driver.find_elements(By.CSS_SELECTOR,
-                               "[data-test-id='header-profile'], [data-test-id='header-accounts-options-button']")) > 0))
+                           "signup" not in driver.current_url and
+                           len(driver.find_elements(By.CSS_SELECTOR, "input[type='email'], input#email")) == 0))
 
         if not already_logged:
             log(f"Not logged in (URL: {driver.current_url}) — logging in...")
@@ -282,19 +286,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     log("Entering email...")
                     email_field.click()
                     time.sleep(0.2)
-                    driver.execute_script("arguments[0].focus();", email_field)
+                    set_input_value(driver, email_field, email)
                     try:
-                        email_field.send_keys(Keys.CONTROL + "a")
-                        email_field.send_keys(Keys.BACKSPACE)
+                        email_field.send_keys(Keys.TAB)
                     except Exception:
                         pass
-                    try:
-                        for char in str(email):
-                            email_field.send_keys(char)
-                            time.sleep(0.02)
-                    except Exception:
-                        email_field.send_keys(email)
-                    set_input_value(driver, email_field, email)
                     time.sleep(0.3)
 
                 # Find all potential password fields and choose the displayed one
@@ -312,18 +308,6 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     log("Entering password...")
                     pass_field.click()
                     time.sleep(0.2)
-                    driver.execute_script("arguments[0].focus();", pass_field)
-                    try:
-                        pass_field.send_keys(Keys.CONTROL + "a")
-                        pass_field.send_keys(Keys.BACKSPACE)
-                    except Exception:
-                        pass
-                    try:
-                        for char in str(password):
-                            pass_field.send_keys(char)
-                            time.sleep(0.02)
-                    except Exception:
-                        pass_field.send_keys(password)
                     set_input_value(driver, pass_field, password)
                     time.sleep(0.3)
 
@@ -397,9 +381,16 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e:
                 log(f"Login form error: {e}")
 
-            # Verify if logged in
+            # Verify if logged in or check by navigating to pin-builder directly
             curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-            is_authed = curr_cookies.get('_auth') == '1' or "login" not in driver.current_url.lower()
+            is_authed = curr_cookies.get('_auth') == '1' or ("login" not in driver.current_url.lower() and "signup" not in driver.current_url.lower())
+            if not is_authed:
+                log("Checking session verification on pin creation tool...")
+                driver.get("https://www.pinterest.com/pin-builder/")
+                time.sleep(4)
+                curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+                is_authed = curr_cookies.get('_auth') == '1' or ("login" not in driver.current_url.lower() and "signup" not in driver.current_url.lower() and len(driver.find_elements(By.CSS_SELECTOR, "input#email, input[type='email']")) == 0)
+
             if not is_authed:
                 err_text = f"Pinterest login failed on AWS — URL: {driver.current_url}"
                 try:
