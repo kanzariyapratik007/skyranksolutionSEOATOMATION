@@ -16,70 +16,31 @@ GIF_1X1 = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\
 
 
 def make_vertical_pinterest_image(input_path):
-    try:
-        from PIL import Image
-        with Image.open(input_path) as im:
-            im = im.convert('RGB')
-            w, h = im.size
-            target_w, target_h = 1000, 1500
-            target_ratio = target_w / float(target_h) # 0.6667
-            src_ratio = w / float(h)
-            
-            # Smart Center Crop to 2:3 aspect ratio (1000x1500)
-            if src_ratio > target_ratio:
-                # Source is wider than target ratio
-                scaled_h = target_h
-                scaled_w = int(w * (target_h / float(h)))
-                resized = im.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
-                crop_left = (scaled_w - target_w) // 2
-                cropped = resized.crop((crop_left, 0, crop_left + target_w, target_h))
-            else:
-                # Source is taller than target ratio
-                scaled_w = target_w
-                scaled_h = int(h * (target_w / float(w)))
-                resized = im.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
-                crop_top = (scaled_h - target_h) // 2
-                cropped = resized.crop((0, crop_top, target_w, crop_top + target_h))
-                
-            out_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
-            cropped.save(out_path, "JPEG", quality=95)
-            print(f"[Agent] Smart Center-Cropped image ({w}x{h}) into HD 1000x1500 Pinterest image", flush=True)
-            return out_path
-    except Exception as e:
-        print(f"[Agent] Note: Image smart-crop skip: {e}", flush=True)
+    # Preserve original image 100% untouched as requested by user
     return input_path
 
 
 def ensure_local_image(image_path, image_url, keyword):
     if image_path and os.path.exists(image_path) and os.path.getsize(image_path) > 500:
-        return make_vertical_pinterest_image(image_path)
+        return image_path
 
     if image_url:
         try:
-            local_img = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
+            ext = ".jpg"
+            url_lower = image_url.lower()
+            if ".png" in url_lower: ext = ".png"
+            elif ".jpeg" in url_lower: ext = ".jpeg"
+            elif ".webp" in url_lower: ext = ".webp"
+            
+            local_img = os.path.join(SCRIPT_DIR, f"temp_user_upload{ext}")
             req = urllib.request.Request(image_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response, open(local_img, 'wb') as out_file:
+            with urllib.request.urlopen(req, timeout=15) as response, open(local_img, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             if os.path.exists(local_img) and os.path.getsize(local_img) > 500:
-                print(f"[Agent] Downloaded image from URL ({os.path.getsize(local_img)} bytes)", flush=True)
-                return make_vertical_pinterest_image(local_img)
+                print(f"[Agent] Downloaded original user image from URL ({os.path.getsize(local_img)} bytes)", flush=True)
+                return local_img
         except Exception as e:
-            print(f"[Agent] Warning: Could not download image URL: {e}", flush=True)
-
-    # Generate fallback local marketing image with PIL
-    try:
-        from PIL import Image, ImageDraw
-        img_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
-        img = Image.new('RGB', (1000, 1500), color=(15, 23, 42))
-        draw = ImageDraw.Draw(img)
-        draw.rectangle([50, 50, 950, 1450], outline=(59, 130, 246), width=8)
-        draw.rectangle([100, 200, 900, 400], fill=(30, 58, 138))
-        draw.rectangle([100, 500, 900, 1300], fill=(30, 41, 59))
-        img.save(img_path, "JPEG", quality=90)
-        print(f"[Agent] Generated fallback PIL marketing image at: {img_path}", flush=True)
-        return img_path
-    except Exception as e_pil:
-        print(f"[Agent] PIL fallback image generation error: {e_pil}", flush=True)
+            print(f"[Agent] Warning: Could not download user image URL: {e}", flush=True)
 
     return image_path
 

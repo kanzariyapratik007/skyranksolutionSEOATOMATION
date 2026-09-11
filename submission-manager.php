@@ -112,7 +112,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
         $rawPass = $creds['password'] ?? '';
         $pass = function_exists('decodePass') ? decodePass($rawPass) : base64_decode($rawPass);
 
-        // Generate AI Title & Description
+        // Generate Dynamic AI Title & Description
         $aiTitle = "Best " . $keyword . " - 2026 Guide";
         $aiDesc  = "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
         
@@ -128,16 +128,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
             }
         } catch (Throwable $e) {}
 
-        // Resolve user-uploaded image for project
+        // Resolve exact user-uploaded image for project
         $imageUrl = '';
         if (!empty($proj['post_image']) && file_exists(__DIR__ . "/uploads/" . $proj['post_image'])) {
             $imageUrl = SITE_URL . "/uploads/" . $proj['post_image'];
         } else {
-            // Check any matching uploaded file for this project
+            // Check matching uploaded files for this project, prioritizing manual uploads over AI generated posters
             $projectFiles = glob(__DIR__ . "/uploads/project_{$pId}_*");
             if (!empty($projectFiles)) {
-                usort($projectFiles, function($a, $b) { return filemtime($b) - filemtime($a); });
-                $imageUrl = SITE_URL . "/uploads/" . basename($projectFiles[0]);
+                $manualUploads = array_filter($projectFiles, function($f) {
+                    $fn = strtolower(basename($f));
+                    return strpos($fn, '_ai_') === false && strpos($fn, 'poster_') === false && strpos($fn, 'pollinations') === false;
+                });
+                $targetFiles = !empty($manualUploads) ? array_values($manualUploads) : $projectFiles;
+                usort($targetFiles, function($a, $b) { return filemtime($b) - filemtime($a); });
+                $imageUrl = SITE_URL . "/uploads/" . basename($targetFiles[0]);
             }
         }
 
