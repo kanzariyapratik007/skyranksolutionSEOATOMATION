@@ -38,11 +38,11 @@ def result(success, url='', error=''):
 def get_driver(email="default", proxy=None):
     opts = Options()
     if sys.platform != "win32":
-        opts.add_argument('--headless=new')
+        # If running in Xvfb (DISPLAY env set), use display instead of --headless=new to avoid renderer crashes
+        if not os.environ.get('DISPLAY'):
+            opts.add_argument('--headless=new')
         opts.add_argument('--disable-gpu')
         opts.add_argument('--disable-software-rasterizer')
-        opts.add_argument('--disable-setuid-sandbox')
-        opts.add_argument('--disable-namespace-sandbox')
         import shutil
         chrome_bin = shutil.which('google-chrome') or shutil.which('google-chrome-stable') or shutil.which('chromium-browser') or shutil.which('chromium')
         if not chrome_bin:
@@ -52,9 +52,16 @@ def get_driver(email="default", proxy=None):
                     break
         if chrome_bin:
             opts.binary_location = chrome_bin
-    # Chrome launch flags optimized for Linux EC2 stability with swap
+
+    # Chrome launch flags optimized for Linux EC2 stability with swap & low RAM
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
+    opts.add_argument('--disable-gpu')
+    opts.add_argument('--disable-software-rasterizer')
+    opts.add_argument('--no-zygote')
+    opts.add_argument('--disable-setuid-sandbox')
+    opts.add_argument('--disable-features=IsolateOrigins,site-per-process,Translate,BackForwardCache')
+    opts.add_argument('--js-flags=--max-old-space-size=512')
     opts.add_argument('--disable-blink-features=AutomationControlled')
     opts.add_argument('--disable-extensions')
     opts.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -91,14 +98,6 @@ def get_driver(email="default", proxy=None):
         except Exception as e_zip:
             log(f"Cookie restore error: {e_zip}")
 
-    # Clean up any leftover Chrome/Chromedriver processes on Linux
-    if sys.platform != "win32":
-        try:
-            os.system("pkill -9 -f chrome 2>/dev/null; pkill -9 -f chromedriver 2>/dev/null")
-            time.sleep(0.5)
-        except Exception:
-            pass
-
     # Clean up lock files from any previous crashed runs to prevent startup crash
     if os.path.exists(profile_dir):
         for root, dirs, files in os.walk(profile_dir):
@@ -120,12 +119,6 @@ def get_driver(email="default", proxy=None):
     driver = None
     last_err = ""
     for attempt in range(3):
-        if sys.platform != "win32":
-            try:
-                os.system("pkill -9 -f chrome 2>/dev/null; pkill -9 -f chromedriver 2>/dev/null")
-                time.sleep(0.5)
-            except Exception:
-                pass
         if os.path.exists(profile_dir):
             for root, dirs, files in os.walk(profile_dir):
                 for f in files:
@@ -161,11 +154,16 @@ def get_driver(email="default", proxy=None):
             fallback_dir = tempfile.mkdtemp(prefix="chrome_fb_")
             opts = Options()
             if sys.platform != "win32":
-                opts.add_argument('--headless=new')
+                if not os.environ.get('DISPLAY'):
+                    opts.add_argument('--headless=new')
                 opts.add_argument('--disable-gpu')
                 opts.add_argument('--disable-software-rasterizer')
             opts.add_argument('--no-sandbox')
             opts.add_argument('--disable-dev-shm-usage')
+            opts.add_argument('--no-zygote')
+            opts.add_argument('--disable-setuid-sandbox')
+            opts.add_argument('--disable-features=IsolateOrigins,site-per-process,Translate,BackForwardCache')
+            opts.add_argument('--js-flags=--max-old-space-size=512')
             opts.add_argument('--disable-blink-features=AutomationControlled')
             opts.add_experimental_option('excludeSwitches', ['enable-automation'])
             opts.add_experimental_option('useAutomationExtension', False)
@@ -490,20 +488,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 "[data-test-id='description-field']",
                 "div[aria-label*='description' i]",
                 "div[aria-label*='Tell' i]",
-                "div[placeholder*='description' i]",
-                "div[placeholder*='Tell' i]",
-                "textarea[placeholder*='description' i]",
-                "textarea[placeholder*='Tell' i]",
-                "[data-test-id='pin-builder-description']",
-                ".public-DraftEditor-editor"
             ]
             cd = None
             for sel in desc_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, sel)
                     for el in elements:
-                        if el and (el.is_displayed() or el.get_attribute("contenteditable") == "true" or el.get_attribute("role") == "textbox"):
-                            # Skip if this element is actually the title input
+                        if el and el.is_displayed():
                             el_id = el.get_attribute("id") or ""
                             if "title" in el_id.lower():
                                 continue
@@ -515,30 +506,21 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     continue
 
             if not cd:
-                # Fallback: The 2nd editable text element on the Pin Builder canvas is Description
-                all_editables = driver.find_elements(By.CSS_SELECTOR, "textarea, [contenteditable='true'], div[role='textbox']")
-                valid_editables = []
-                for el in all_editables:
+                for el in driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-draft'] [contenteditable='true'], [data-test-id='pin-builder-draft'] textarea, div[role='textbox']"):
                     try:
-                        if el.is_displayed():
-                            valid_editables.append(el)
-                    except Exception:
+                        if el.is_displayed() and "title" not in (el.get_attribute("id") or "").lower():
+                            cd = el
+                            break
+                    except:
                         pass
-                if len(valid_editables) >= 2:
-                    cd = valid_editables[1]
-                    log("Description found via 2nd canvas editable fallback!")
 
             if cd:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", cd)
-                time.sleep(0.3)
                 try:
-                    ActionChains(driver).move_to_element(cd).click().send_keys(desc).perform()
+                    js_click(driver, cd)
+                    time.sleep(0.2)
+                    cd.send_keys(desc)
                 except Exception:
-                    try:
-                        cd.click()
-                        cd.send_keys(desc)
-                    except Exception:
-                        set_input_value(driver, cd, desc)
+                    set_input_value(driver, cd, desc)
                 log("Description OK!")
             else:
                 log("Description element not found via selectors")
