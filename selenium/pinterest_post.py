@@ -38,7 +38,7 @@ def result(success, url='', error=''):
 def get_driver(email="default", proxy=None):
     opts = Options()
     if sys.platform != "win32":
-        opts.add_argument('--headless=new')
+        opts.add_argument('--headless')
         opts.add_argument('--disable-gpu')
         opts.add_argument('--disable-software-rasterizer')
         import shutil
@@ -601,39 +601,24 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", bb)
                 time.sleep(0.5)
                 js_click(driver, bb)
-                time.sleep(3)
+                time.sleep(2)
                 log("Board dropdown opened")
 
-            # Check for existing boards — prefer keyword-matching board
-            flyout = driver.find_elements(
-                By.CSS_SELECTOR, "[data-test-id='board-picker-flyout']")
-            if flyout:
-                rows = flyout[0].find_elements(By.CSS_SELECTOR,
-                    "[data-test-id='boardWithoutSection']")
+            # Check for existing boards — select available board
+            rows = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='boardWithoutSection'], [data-test-id='board-row'], div[role='option']")
+            if rows:
                 log(f"Board rows found: {len(rows)}")
-
-                # Build keyword words for matching
-                kw_words = [w.lower() for w in keyword.split() if len(w) > 2]
-
-                # First pass: find best keyword-matching board
-                best_row = None
-                best_score = 0
-                for row in rows:
-                    txt = row.text.strip().lower()
-                    if not txt or 'create' in txt:
-                        continue
-                    score = sum(1 for w in kw_words if w in txt)
-                    if score > best_score:
-                        best_score = score
-                        best_row = row
-
-                # Use best match, else first available board
-                selected_row = best_row or (rows[0] if rows else None)
+                selected_row = rows[0]
+                for r in rows:
+                    txt = (r.text or '').strip().lower()
+                    if txt and 'create' not in txt:
+                        selected_row = r
+                        break
                 if selected_row:
                     txt = selected_row.text.strip()
                     js_click(driver, selected_row)
                     time.sleep(2)
-                    log(f"Board selected: '{txt[:60]}' (score={best_score})")
+                    log(f"Board selected: '{txt[:60]}'")
                     board_selected = True
 
             if not board_selected:
