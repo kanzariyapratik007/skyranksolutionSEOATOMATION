@@ -241,160 +241,80 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
     if not driver:
         result(False, error="Failed to launch Chrome driver on server")
         return
-    wait   = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 25)
 
     try:
-        log("Checking login status...")
+        log("Opening Pinterest...")
         driver.get("https://www.pinterest.com/pin-builder/")
-        time.sleep(3)
+        time.sleep(4)
 
-        # Check if already logged in (has profile icon, feed, or _auth=1 cookie)
-        cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-        already_logged = (cookies.get('_auth') == '1' or
-                          ("pinterest.com" in driver.current_url and
-                           "login" not in driver.current_url and
-                           "signup" not in driver.current_url and
-                           len(driver.find_elements(By.CSS_SELECTOR, "input[type='email'], input#email")) == 0))
+        current = driver.current_url.lower()
+        needs_login = ("login" in current or "signup" in current or len(driver.find_elements(By.CSS_SELECTOR, "input#email, input[type='email'], input[name='id']")) > 0)
 
-        if not already_logged:
-            log(f"Not logged in (URL: {driver.current_url}) — logging in...")
-            driver.get("https://www.pinterest.com/login/")
-            time.sleep(4)
-            log(f"Opened login page. Current URL: {driver.current_url}, Title: {driver.title}")
+        if needs_login:
+            log("Not logged in — navigating to login page...")
+            if "login" not in current:
+                driver.get("https://www.pinterest.com/login/")
+                time.sleep(3)
 
-            # Wait for email field (may show captcha/block)
+            log("Locating email input...")
+            email_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#email, input[type='email'], input[name='id'], input[name='username']")))
+            email_field.click()
+            time.sleep(0.5)
+            email_field.clear()
+            for ch in str(email):
+                email_field.send_keys(ch)
+                time.sleep(0.04)
+            time.sleep(0.5)
+
+            log("Locating password input...")
+            pass_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#password, input[type='password'], input[name='password']")))
+            pass_field.click()
+            time.sleep(0.5)
+            pass_field.clear()
+            for ch in str(password):
+                pass_field.send_keys(ch)
+                time.sleep(0.04)
+            time.sleep(1)
+
+            submit_btn = None
             try:
-                # Wait for at least one email field to be present
+                submit_btn = driver.find_element(By.CSS_SELECTOR, "[data-test-id='registerFormSubmitButton'], button[type='submit']")
+            except Exception:
+                for b in driver.find_elements(By.TAG_NAME, "button"):
+                    if "log in" in (b.text or '').lower() or "login" in (b.text or '').lower():
+                        submit_btn = b
+                        break
+
+            log("Submitting login form naturally...")
+            if submit_btn:
                 try:
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#email, input[name='id'], input[type='email'], input[name='username']")))
-                except Exception as e_wait:
-                    log(f"Wait for email input timed out: {e_wait}")
-                
-                # Find all potential email fields and choose the displayed one
-                email_fields = driver.find_elements(By.CSS_SELECTOR, "input#email, input[name='id'], input[type='email'], input[name='username']")
-                log(f"Found {len(email_fields)} email input candidate(s)")
-                email_field = None
-                for ef in email_fields:
-                    if ef.is_displayed():
-                        email_field = ef
-                        break
-                if not email_field and email_fields:
-                    email_field = email_fields[0]
+                    submit_btn.click()
+                except Exception:
+                    pass_field.send_keys(Keys.ENTER)
+            else:
+                pass_field.send_keys(Keys.ENTER)
 
-                if email_field:
-                    log("Entering email...")
-                    email_field.click()
-                    time.sleep(0.2)
-                    set_input_value(driver, email_field, email)
-                    try:
-                        email_field.send_keys(Keys.TAB)
-                    except Exception:
-                        pass
-                    time.sleep(0.3)
-
-                # Find all potential password fields and choose the displayed one
-                password_fields = driver.find_elements(By.CSS_SELECTOR, "input#password, input[name='password'], input[type='password']")
-                log(f"Found {len(password_fields)} password input candidate(s)")
-                pass_field = None
-                for pf in password_fields:
-                    if pf.is_displayed():
-                        pass_field = pf
-                        break
-                if not pass_field and password_fields:
-                    pass_field = password_fields[0]
-
-                if pass_field:
-                    log("Entering password...")
-                    pass_field.click()
-                    time.sleep(0.2)
-                    set_input_value(driver, pass_field, password)
-                    time.sleep(0.3)
-
-                # Find submit button with all known Pinterest selectors
-                submit_selectors = [
-                    "[data-test-id='registerFormSubmitButton']",
-                    "[data-test-id='registerFormSubmitButton'] button",
-                    "button[data-test-id='registerFormSubmitButton']",
-                    "div[data-test-id='registerFormSubmitButton']",
-                    "button[type='submit']",
-                    "button.red.SignupButton",
-                    "button.red.LoginButton"
-                ]
-                submit_btn = None
-                for sel in submit_selectors:
-                    found = driver.find_elements(By.CSS_SELECTOR, sel)
-                    for b in found:
-                        if b.is_displayed():
-                            submit_btn = b
-                            break
-                    if submit_btn:
-                        break
-                
-                if not submit_btn:
-                    # Fallback: search buttons by text
-                    for b in driver.find_elements(By.TAG_NAME, "button"):
-                        txt = (b.text or '').lower()
-                        if "log in" in txt or "login" in txt:
-                            if b.is_displayed():
-                                submit_btn = b
-                                break
-
-                log("Submitting login form via ENTER key, click, and form submit...")
-                if pass_field:
-                    try:
-                        pass_field.send_keys(Keys.ENTER)
-                    except Exception:
-                        pass
-                
-                if submit_btn:
-                    try:
-                        ActionChains(driver).move_to_element(submit_btn).click().perform()
-                    except Exception:
-                        try:
-                            submit_btn.click()
-                        except Exception:
-                            pass
-                    try:
-                        driver.execute_script("arguments[0].click();", submit_btn)
-                    except Exception:
-                        pass
-
-                # Also trigger native form requestSubmit / submit if present
-                if pass_field:
-                    try:
-                        driver.execute_script("var f = arguments[0].closest('form'); if(f) { if(f.requestSubmit) f.requestSubmit(); else f.submit(); }", pass_field)
-                    except Exception:
-                        pass
-
-                log("Waiting for authentication redirect...")
-                for wait_i in range(15):
-                    time.sleep(1)
-                    curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-                    if curr_cookies.get('_auth') == '1':
-                        log(f"Login successful! (_auth cookie set). Current URL: {driver.current_url}")
-                        break
+            log("Waiting for authentication...")
+            time.sleep(4)
+            is_authed = False
+            for _ in range(12):
+                try:
                     curr = driver.current_url.lower()
-                    if "login" not in curr and "signup" not in curr:
-                        log(f"Login redirect detected! Current URL: {driver.current_url}")
+                    cookies = {c['name']: c['value'] for c in driver.get_cookies()}
+                    if cookies.get('_auth') == '1' or ("login" not in curr and "signup" not in curr):
+                        is_authed = True
+                        log(f"Login success! Redirected to: {driver.current_url}")
                         break
-            except Exception as e:
-                log(f"Login form error: {e}")
-
-            # Verify if logged in or check by navigating to pin-builder directly
-            curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-            is_authed = curr_cookies.get('_auth') == '1' or ("login" not in driver.current_url.lower() and "signup" not in driver.current_url.lower())
-            if not is_authed:
-                log("Checking session verification on pin creation tool...")
-                driver.get("https://www.pinterest.com/pin-builder/")
-                time.sleep(4)
-                curr_cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-                is_authed = curr_cookies.get('_auth') == '1' or ("login" not in driver.current_url.lower() and "signup" not in driver.current_url.lower() and len(driver.find_elements(By.CSS_SELECTOR, "input#email, input[type='email']")) == 0)
+                except Exception:
+                    pass
+                time.sleep(1)
 
             if not is_authed:
                 err_text = f"Pinterest login failed on AWS — URL: {driver.current_url}"
                 try:
                     page_text = driver.find_element(By.TAG_NAME, "body").text
-                    log(f"Page text sample: {page_text[:300].replace('\n', ' ')}")
+                    log(f"Page text sample: {page_text[:300].replace(chr(10), ' ')}")
                     if "strange activity" in page_text.lower() or "reset your password" in page_text.lower():
                         err_text = "Pinterest Account Security Lock: 'We noticed some strange activity on your account. Please reset your password on Pinterest.'"
                     elif "incorrect" in page_text.lower() or "invalid" in page_text.lower():
@@ -404,8 +324,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 try:
                     driver.save_screenshot(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pinterest_error.png'))
                     log("Saved login failure screenshot to pinterest_error.png")
-                except Exception as ex:
-                    log(f"Screenshot exception: {ex}")
+                except Exception:
+                    pass
                 try:
                     driver.quit()
                 except Exception:
@@ -416,10 +336,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         log("Login OK!")
 
         # ── Step 2: Pin Creation Tool ──────────────────────────────
-        log("Opening Pin creation tool (pin-builder)...")
-        driver.get("https://www.pinterest.com/pin-builder/")
-        time.sleep(5)
-        log("Pin builder opened")
+        if "pin-builder" not in driver.current_url.lower():
+            log("Opening Pin creation tool (pin-builder)...")
+            driver.get("https://www.pinterest.com/pin-builder/")
+            time.sleep(5)
+        log("Pin builder ready")
 
         # ── Step 3: Upload image ───────────────────────────────────
         def is_valid_file(p):
