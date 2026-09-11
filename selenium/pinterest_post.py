@@ -322,14 +322,13 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             for _ in range(12):
                 try:
                     curr = driver.current_url.lower()
-                    cookies = {c['name']: c['value'] for c in driver.get_cookies()}
-                    if cookies.get('_auth') == '1' or ("login" not in curr and "signup" not in curr):
+                    if "login" not in curr and "signup" not in curr and "pinterest" in curr:
                         is_authed = True
                         log(f"Login success! Redirected to: {driver.current_url}")
                         break
                 except Exception:
                     pass
-                time.sleep(1)
+                time.sleep(1.5)
 
             if not is_authed:
                 err_text = f"Pinterest login failed on AWS — URL: {driver.current_url}"
