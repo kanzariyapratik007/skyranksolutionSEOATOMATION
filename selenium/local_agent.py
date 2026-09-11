@@ -98,8 +98,8 @@ class AgentHandler(BaseHTTPRequestHandler):
                 payload = json.loads(post_data.decode('utf-8'))
             except Exception:
                 try:
-                    import urllib.parse
-                    parsed = urllib.parse.parse_qs(post_data.decode('utf-8'))
+                    from urllib.parse import parse_qs
+                    parsed = parse_qs(post_data.decode('utf-8'))
                     payload = {k: v[0] for k, v in parsed.items()}
                 except Exception as e:
                     self._send_json_response(400, {"success": False, "error": f"Invalid payload: {e}"})
@@ -122,6 +122,7 @@ class AgentHandler(BaseHTTPRequestHandler):
                     image_path = local_img
                 except Exception as e:
                     print(f"[Agent] Warning: Could not download image URL: {e}", flush=True)
+
 
             print(f"[Agent] Executing Pinterest post for: {email}...", flush=True)
 

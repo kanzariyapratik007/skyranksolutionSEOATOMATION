@@ -1235,17 +1235,16 @@ function renderPrimaryConsoleTableHtml($db, $selectedProjectId, $currentKeyword,
                   <?php endif; ?>
                 </td>
                 <td>
-                  <?php if (!empty($allAccounts) && (!isset($site['autopost']) || $site['autopost'] !== false)): ?>
+                  <?php if ($cooldown['is_cooldown']): ?>
+                    <span class="text-muted fw-bold"><i class="fas fa-clock me-1"></i>Wait <?= $cooldown['time_str'] ?></span>
+                  <?php elseif (!empty($allAccounts) && (!isset($site['autopost']) || $site['autopost'] !== false)): ?>
                     <button class="btn btn-sm btn-success"
                             onclick="autoPostAll('<?= $site['id'] ?>', '<?= $site['name'] ?>', <?= $selectedProjectId ?>, <?= count($allAccounts) ?>)">
                       <i class="fas fa-paper-plane me-1"></i>Auto Post
-                      <?php if ($cooldown['is_cooldown']): ?>
-                        <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;"><?= $cooldown['time_str'] ?></span>
-                      <?php elseif (count($allAccounts) > 1): ?>
+                      <?php if (count($allAccounts) > 1): ?>
                         <span class="badge bg-warning text-dark ms-1"><?= count($allAccounts) ?> accounts</span>
                       <?php endif; ?>
                     </button>
-
                   <?php elseif (isset($site['autopost']) && $site['autopost'] === false): ?>
                     <span class="text-muted small">Coming Soon</span>
                   <?php else: ?>
@@ -2701,7 +2700,6 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
   const accParam = accountId ? `&account_id=${accountId}` : '';
   // Step 1: Get payload from AWS DB
   fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${curProjId}&keyword=${kw}&target_site=${siteUrl}${accParam}`)
-
     .then(r => r.text())
     .then(text => {
       let data;
@@ -2726,11 +2724,6 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
           const fd = new FormData();
           fd.append('project_id', curProjId);
           fd.append('platform', platformId);
-          fd.append('url', result.url);
-          fd.append('post_title', data.ai_title);
-          fd.append('keyword', data.keyword);
-          fd.append('target_site', data.target_site);
-
           fetch('submission-manager.php?action=save_local_backlink', {
             method: 'POST',
             body: fd
@@ -2808,13 +2801,13 @@ function submitHiddenForm(targetUrl, payload) {
   console.log('[SkyRank Bridge] Submitted payload via Form to target:', targetUrl);
 }
 
-function autoPost(platformId, platformName, projectId, accountId) {
-  autoPostAll(platformId, platformName, projectId, accountId);
+function autoPost(platformId, platformName, projectId) {
+  autoPostAll(platformId, platformName, projectId);
 }
 
-function autoPostAll(platformId, platformName, projectId, accountId) {
+function autoPostAll(platformId, platformName, projectId) {
   if (platformId === 'pinterest') {
-    runLocalAgentPost(platformId, platformName, projectId, accountId);
+    runLocalAgentPost(platformId, platformName, projectId);
     return;
   }
   runServerAutoPostAll(platformId, platformName, projectId);
