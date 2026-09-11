@@ -282,24 +282,52 @@ def set_system_clipboard(text):
     return False
 
 def fill_draftjs_editor(driver, text):
-    """Accurately fills Pinterest DraftJS description using OS clipboard paste + synthetic events."""
+    """Option 1: Accurately fills Pinterest DraftJS description with placeholder activation, OS clipboard paste, synthetic fallback, and 1.5s React state commit pause."""
     if not text:
         return False
-    
-    # 1. Set OS clipboard
+
+    # 1. Set OS clipboard immediately
     set_system_clipboard(text)
-    
-    # 2. Find the DraftJS description element
+
+    # 2. Step A: Check and click any description placeholder or expander button
+    activator_selectors = [
+        "button[aria-label*='description' i]",
+        "button[aria-label*='Tell' i]",
+        "[data-test-id='pin-builder-description'] button",
+        "[data-test-id='pin-builder-description'] [role='button']",
+        "[data-test-id='description-field'] button",
+        "[data-test-id='pin-builder-description']",
+        "[data-test-id='description-field']"
+    ]
+    for act_sel in activator_selectors:
+        try:
+            btns = driver.find_elements(By.CSS_SELECTOR, act_sel)
+            for btn in btns:
+                if btn.is_displayed():
+                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+                    time.sleep(0.2)
+                    driver.execute_script("arguments[0].click();", btn)
+                    time.sleep(0.4)
+                    break
+        except Exception:
+            pass
+
+    # 3. Step B: Locate the active DraftJS contenteditable or textarea
     desc_el = None
     selectors = [
         "[data-test-id='pin-builder-description'] [contenteditable='true']",
+        "[data-test-id='pin-builder-description'] .public-DraftEditor-editor [contenteditable='true']",
         "[data-test-id='pin-builder-description'] .public-DraftEditor-editor",
         "[data-test-id='pin-builder-description'] div[role='textbox']",
         "[data-test-id='description-field'] [contenteditable='true']",
+        ".public-DraftEditor-editor [contenteditable='true']",
         ".public-DraftEditor-editor",
         "div[contenteditable='true'][role='textbox']",
+        "div.notranslate[contenteditable='true']",
         "#storyboard-selector-description",
-        "[data-test-id='pin-builder-description'] textarea"
+        "[data-test-id='pin-builder-description'] textarea",
+        "textarea[placeholder*='description' i]",
+        "textarea[placeholder*='Tell' i]"
     ]
     for sel in selectors:
         els = driver.find_elements(By.CSS_SELECTOR, sel)
@@ -332,13 +360,15 @@ def fill_draftjs_editor(driver, text):
         return False
 
     log("Found DraftJS description element — activating and pasting text...")
-    
+
+    # Focus and scroll element into view
     try:
         driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", desc_el)
         time.sleep(0.3)
     except Exception:
         pass
 
+    # Real user click to establish focus inside DraftJS
     try:
         ActionChains(driver).move_to_element(desc_el).click().perform()
         time.sleep(0.3)
@@ -349,17 +379,20 @@ def fill_draftjs_editor(driver, text):
         except Exception:
             pass
 
+    # Select all and paste via Ctrl+V (DraftJS handlePastedText handler)
     try:
         ActionChains(driver).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
         time.sleep(0.2)
+        ActionChains(driver).send_keys(Keys.BACKSPACE).perform()
+        time.sleep(0.2)
         ActionChains(driver).key_down(Keys.CONTROL).send_keys('v').key_up(Keys.CONTROL).perform()
-        time.sleep(0.5)
+        time.sleep(0.8)
     except Exception as e_ac:
         log(f"Ctrl+V paste error: {e_ac}")
 
     cur_text = (desc_el.text or desc_el.get_attribute('value') or '').strip()
     if not cur_text:
-        log("Direct paste did not register text, dispatching synthetic ClipboardEvent...")
+        log("Direct Ctrl+V paste empty, injecting via DraftJS synthetic events + execCommand...")
         try:
             driver.execute_script("""
                 var el = arguments[0], val = arguments[1];
@@ -371,17 +404,26 @@ def fill_draftjs_editor(driver, text):
                     el.dispatchEvent(pasteEvt);
                 } catch(e) {}
                 try {
+                    document.execCommand('selectAll', false, null);
                     document.execCommand('insertText', false, val);
                 } catch(e) {}
-                el.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                el.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: val }));
                 el.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
             """, desc_el, text)
-            time.sleep(0.5)
+            time.sleep(0.8)
         except Exception as e_synth:
             log(f"Synthetic paste note: {e_synth}")
 
+    # React State Commit: 1.5s Pause + slight micro-keystroke to seal DraftJS state
+    time.sleep(1.5)
+    try:
+        ActionChains(driver).send_keys(Keys.SPACE).send_keys(Keys.BACKSPACE).perform()
+        time.sleep(0.3)
+    except Exception:
+        pass
+
     final_text = (desc_el.text or desc_el.get_attribute('value') or '').strip()
-    log(f"DraftJS Description state length: {len(final_text)} chars")
+    log(f"DraftJS Description state committed: {len(final_text)} chars")
     return True
 
 def safe_get(driver, url, max_retries=3, delay=3):
@@ -993,6 +1035,11 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         # ── Step 8: Publish ────────────────────────────────────────
         log("Publishing pin...")
         time.sleep(2)
+        try:
+            driver.save_screenshot(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'before_publish.png'))
+            log("Saved Pin Builder state screenshot to before_publish.png")
+        except Exception:
+            pass
         published = False
 
         # Try exact JS click on Pinterest Publish/Save button
