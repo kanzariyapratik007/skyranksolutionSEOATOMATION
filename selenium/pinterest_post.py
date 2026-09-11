@@ -220,6 +220,7 @@ def js_set_value(driver, el, value):
             } else {
                 el.value = val;
             }
+            if (el._valueTracker) { el._valueTracker.setValue(val); }
             el.dispatchEvent(new Event('input', {bubbles: true}));
             el.dispatchEvent(new Event('change', {bubbles: true}));
         } else {
@@ -281,12 +282,18 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     log("Entering email...")
                     email_field.click()
                     time.sleep(0.2)
-                    email_field.send_keys(Keys.CONTROL + "a")
-                    email_field.send_keys(Keys.BACKSPACE)
+                    driver.execute_script("arguments[0].focus();", email_field)
                     try:
-                        email_field.send_keys(email)
+                        email_field.send_keys(Keys.CONTROL + "a")
+                        email_field.send_keys(Keys.BACKSPACE)
                     except Exception:
                         pass
+                    try:
+                        for char in str(email):
+                            email_field.send_keys(char)
+                            time.sleep(0.02)
+                    except Exception:
+                        email_field.send_keys(email)
                     set_input_value(driver, email_field, email)
                     time.sleep(0.3)
 
@@ -305,26 +312,51 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     log("Entering password...")
                     pass_field.click()
                     time.sleep(0.2)
-                    pass_field.send_keys(Keys.CONTROL + "a")
-                    pass_field.send_keys(Keys.BACKSPACE)
+                    driver.execute_script("arguments[0].focus();", pass_field)
                     try:
-                        pass_field.send_keys(password)
+                        pass_field.send_keys(Keys.CONTROL + "a")
+                        pass_field.send_keys(Keys.BACKSPACE)
                     except Exception:
                         pass
+                    try:
+                        for char in str(password):
+                            pass_field.send_keys(char)
+                            time.sleep(0.02)
+                    except Exception:
+                        pass_field.send_keys(password)
                     set_input_value(driver, pass_field, password)
                     time.sleep(0.3)
 
-                # Find submit button
-                submit_buttons = driver.find_elements(By.CSS_SELECTOR, "button[type='submit'], [data-test-id='registerFormSubmitButton'] button, button.red.SignupButton, button.red.LoginButton")
+                # Find submit button with all known Pinterest selectors
+                submit_selectors = [
+                    "[data-test-id='registerFormSubmitButton']",
+                    "[data-test-id='registerFormSubmitButton'] button",
+                    "button[data-test-id='registerFormSubmitButton']",
+                    "div[data-test-id='registerFormSubmitButton']",
+                    "button[type='submit']",
+                    "button.red.SignupButton",
+                    "button.red.LoginButton"
+                ]
                 submit_btn = None
-                for sb in submit_buttons:
-                    if sb.is_displayed():
-                        submit_btn = sb
+                for sel in submit_selectors:
+                    found = driver.find_elements(By.CSS_SELECTOR, sel)
+                    for b in found:
+                        if b.is_displayed():
+                            submit_btn = b
+                            break
+                    if submit_btn:
                         break
-                if not submit_btn and submit_buttons:
-                    submit_btn = submit_buttons[0]
+                
+                if not submit_btn:
+                    # Fallback: search buttons by text
+                    for b in driver.find_elements(By.TAG_NAME, "button"):
+                        txt = (b.text or '').lower()
+                        if "log in" in txt or "login" in txt:
+                            if b.is_displayed():
+                                submit_btn = b
+                                break
 
-                log("Submitting login form via ENTER key and click...")
+                log("Submitting login form via ENTER key, click, and form submit...")
                 if pass_field:
                     try:
                         pass_field.send_keys(Keys.ENTER)
@@ -333,9 +365,23 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 
                 if submit_btn:
                     try:
-                        submit_btn.click()
+                        ActionChains(driver).move_to_element(submit_btn).click().perform()
                     except Exception:
+                        try:
+                            submit_btn.click()
+                        except Exception:
+                            pass
+                    try:
                         driver.execute_script("arguments[0].click();", submit_btn)
+                    except Exception:
+                        pass
+
+                # Also trigger native form requestSubmit / submit if present
+                if pass_field:
+                    try:
+                        driver.execute_script("var f = arguments[0].closest('form'); if(f) { if(f.requestSubmit) f.requestSubmit(); else f.submit(); }", pass_field)
+                    except Exception:
+                        pass
 
                 log("Waiting for authentication redirect...")
                 for wait_i in range(15):
