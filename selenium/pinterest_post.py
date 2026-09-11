@@ -486,8 +486,14 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 "[data-test-id='pin-builder-description'] textarea",
                 "[data-test-id='pin-builder-description'] div[role='textbox']",
                 "[data-test-id='description-field']",
+                "textarea[placeholder*='description' i]",
+                "textarea[placeholder*='Tell' i]",
+                "div[placeholder*='description' i]",
+                "div[placeholder*='Tell' i]",
                 "div[aria-label*='description' i]",
                 "div[aria-label*='Tell' i]",
+                "#storyboard-selector-description",
+                ".public-DraftEditor-editor",
             ]
             cd = None
             for sel in desc_selectors:
@@ -495,8 +501,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     elements = driver.find_elements(By.CSS_SELECTOR, sel)
                     for el in elements:
                         if el and el.is_displayed():
-                            el_id = el.get_attribute("id") or ""
-                            if "title" in el_id.lower():
+                            el_id = (el.get_attribute("id") or "").lower()
+                            if "title" in el_id:
                                 continue
                             cd = el
                             break
@@ -515,12 +521,50 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         pass
 
             if cd:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", cd)
+                time.sleep(0.3)
                 try:
-                    js_click(driver, cd)
-                    time.sleep(0.2)
-                    cd.send_keys(desc)
+                    cd.click()
                 except Exception:
-                    set_input_value(driver, cd, desc)
+                    driver.execute_script("arguments[0].click();", cd)
+                time.sleep(0.2)
+
+                # Set value in React Draft.js / ContentEditable / Textarea editor
+                driver.execute_script("""
+                    var el = arguments[0], val = arguments[1];
+                    el.focus();
+                    var setOk = false;
+                    try {
+                        document.execCommand('selectAll', false, null);
+                        setOk = document.execCommand('insertText', false, val);
+                    } catch(e) {}
+                    if (!setOk || (el.innerText || el.value || '').indexOf(val.substring(0, 10)) === -1) {
+                        try {
+                            var dt = new DataTransfer();
+                            dt.setData('text/plain', val);
+                            var evt = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true });
+                            el.dispatchEvent(evt);
+                        } catch(e) {}
+                    }
+                    if ((el.innerText || el.value || '').indexOf(val.substring(0, 10)) === -1) {
+                        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                            var proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+                            var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+                            if (setter) setter.call(el, val); else el.value = val;
+                        } else {
+                            el.innerText = val;
+                        }
+                        el.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+                    }
+                """, cd, desc)
+                time.sleep(0.3)
+                try:
+                    cd.send_keys(" ")
+                    time.sleep(0.1)
+                    cd.send_keys(Keys.BACKSPACE)
+                except Exception:
+                    pass
                 log("Description OK!")
             else:
                 log("Description element not found via selectors")
