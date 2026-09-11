@@ -727,8 +727,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
         if (in_array($ext, $allowed)) {
             $filename = 'project_' . $projectId . '_' . time() . '.' . $ext;
             move_uploaded_file($_FILES['post_image']['tmp_name'], $uploadDir . $filename);
-            $db->prepare("UPDATE projects SET post_image=? WHERE id=? AND user_id=?")
-               ->execute([$filename, $projectId, $userId]);
+            $db->prepare("UPDATE projects SET post_image=? WHERE id=?")
+               ->execute([$filename, $projectId]);
             setFlash('success', 'Image uploaded! System will use this image for all posts.');
         } else {
             setFlash('danger', 'Invalid file type. Use JPG, PNG, GIF or WebP.');
