@@ -30,7 +30,14 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == '/health' or self.path == '/':
+        if self.path.startswith('/health_js'):
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'application/javascript')
+            self.end_headers()
+            res = "if(window.onSkyRankAgentReady) window.onSkyRankAgentReady();"
+            self.wfile.write(res.encode('utf-8'))
+        elif self.path == '/health' or self.path == '/':
             self.send_response(200)
             self._send_cors_headers()
             self.send_header('Content-Type', 'application/json')
