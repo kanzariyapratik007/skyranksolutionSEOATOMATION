@@ -10,6 +10,8 @@ PORT = 8989
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 POST_SCRIPT = os.path.join(SCRIPT_DIR, "pinterest_post.py")
 
+GIF_1X1 = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+
 class AgentHandler(BaseHTTPRequestHandler):
     def address_string(self):
         return self.client_address[0]
@@ -41,10 +43,19 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.headers.get('Upgrade', '').lower() == 'websocket':
+        if self.path.startswith('/health_img'):
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header('Content-Type', 'image/gif')
+            self.send_header('Content-Length', str(len(GIF_1X1)))
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            self.wfile.write(GIF_1X1)
+        elif self.headers.get('Upgrade', '').lower() == 'websocket':
             key = self.headers.get('Sec-WebSocket-Key', '')
             if key:
-                import hashlib, base64
+                import hashlib, base64, time
                 GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
                 accept_key = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
                 self.send_response(101, 'Switching Protocols')
@@ -52,10 +63,9 @@ class AgentHandler(BaseHTTPRequestHandler):
                 self.send_header('Connection', 'Upgrade')
                 self.send_header('Sec-WebSocket-Accept', accept_key)
                 self.end_headers()
-                print("[Agent] WebSocket health check paired successfully!", flush=True)
+                time.sleep(0.5)
                 return
-
-        if self.path.startswith('/health_js'):
+        elif self.path.startswith('/health_js'):
             body = "if(window.onSkyRankAgentReady) window.onSkyRankAgentReady();".encode('utf-8')
             self.send_response(200)
             self._send_cors_headers()

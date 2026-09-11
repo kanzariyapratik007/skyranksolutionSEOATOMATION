@@ -2506,68 +2506,71 @@ function setPcAgentOffline() {
 }
 
 function checkPcAgentStatus() {
-  console.log('[SkyRank Bridge] Checking PC Agent health via WebSocket/CORS...');
-  let connected = false;
+  console.log('[SkyRank Bridge] Checking PC Agent health via Image Probe...');
+  let resolved = false;
 
-  // 1. Try WebSocket (100% exempted from Chrome Private Network Access PNA restrictions)
+  const img = new Image();
+  img.onload = function() {
+    if (!resolved) {
+      resolved = true;
+      console.log('[SkyRank Bridge] Connected via 127.0.0.1 Image Probe!');
+      setPcAgentOnline('http://127.0.0.1:8989');
+    }
+  };
+
+  img.onerror = function() {
+    if (!resolved) {
+      const img2 = new Image();
+      img2.onload = function() {
+        if (!resolved) {
+          resolved = true;
+          console.log('[SkyRank Bridge] Connected via localhost Image Probe!');
+          setPcAgentOnline('http://localhost:8989');
+        }
+      };
+      img2.onerror = function() {
+        if (!resolved) {
+          resolved = true;
+          checkPcAgentWebSocketFallback();
+        }
+      };
+      img2.src = 'http://localhost:8989/health_img?t=' + Date.now();
+    }
+  };
+
+  img.src = 'http://127.0.0.1:8989/health_img?t=' + Date.now();
+
+  setTimeout(() => {
+    if (!resolved) {
+      resolved = true;
+      checkPcAgentWebSocketFallback();
+    }
+  }, 1500);
+}
+
+function checkPcAgentWebSocketFallback() {
+  let connected = false;
   try {
     const ws = new WebSocket('ws://127.0.0.1:8989');
     const wsTimer = setTimeout(() => {
-      if (!connected) checkPcAgentFetchFallback();
+      if (!connected) setPcAgentOffline();
       try { ws.close(); } catch(e){}
     }, 1200);
 
     ws.onopen = function() {
       connected = true;
       clearTimeout(wsTimer);
-      console.log('[SkyRank Bridge] Connected via WebSocket PNA bypass!');
+      console.log('[SkyRank Bridge] Connected via WebSocket!');
       setPcAgentOnline('http://127.0.0.1:8989');
-      try { ws.close(); } catch(e){}
     };
 
     ws.onerror = function() {
-      if (!connected) checkPcAgentFetchFallback();
+      if (!connected) setPcAgentOffline();
     };
   } catch (e) {
-    checkPcAgentFetchFallback();
+    setPcAgentOffline();
   }
 }
-
-function checkPcAgentFetchFallback() {
-  const safeFetch = (url) => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout')), 1500);
-      fetch(url)
-        .then(r => { clearTimeout(timer); resolve(r); })
-        .catch(err => { clearTimeout(timer); reject(err); });
-    });
-  };
-
-  safeFetch('http://127.0.0.1:8989/health')
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.status === 'active') {
-        console.log('[SkyRank Bridge] Connected via CORS fetch!');
-        setPcAgentOnline('http://127.0.0.1:8989');
-      } else {
-        triggerScriptProbeFallback();
-      }
-    })
-    .catch(() => {
-      triggerScriptProbeFallback();
-    });
-}
-
-function triggerScriptProbeFallback() {
-  const oldScript = document.getElementById('pcAgentScriptProbe');
-  if (oldScript) oldScript.remove();
-
-  let scriptDetected = false;
-  window.onSkyRankAgentReady = function() {
-    scriptDetected = true;
-    console.log('[SkyRank Bridge] Connected via Script Probe!');
-    setPcAgentOnline('http://127.0.0.1:8989');
-  };
 
   const script = document.createElement('script');
   script.id = 'pcAgentScriptProbe';
