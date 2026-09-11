@@ -504,7 +504,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log(f"Title: {e}")
 
         # ── Step 5: Description ────────────────────────────────────
-        if ai_content and len(ai_content.strip()) > 50:
+        if ai_content and len(ai_content.strip()) > 10:
             desc = ai_content.strip()
         else:
             desc = (
@@ -834,7 +834,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         # ── Step 9: Get URL ────────────────────────────────────────
         time.sleep(3)
-        for i in range(25):
+        for i in range(35):
             cu = (driver.current_url or '').lower()
             if "/pin/" in cu:
                 log(f"Pin created successfully! URL: {driver.current_url}")

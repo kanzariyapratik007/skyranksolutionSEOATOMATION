@@ -140,8 +140,8 @@ class AgentHandler(BaseHTTPRequestHandler):
             target_site = payload.get('target_site', 'https://example.com')
             image_path  = payload.get('image_path', '')
             image_url   = payload.get('image_url', '')
-            ai_title    = payload.get('ai_title', '')
-            ai_content  = payload.get('ai_content', '')
+            ai_title    = payload.get('ai_title') or payload.get('title') or ''
+            ai_content  = payload.get('ai_content') or payload.get('ai_desc') or payload.get('description') or ''
 
             is_form = 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', '')
 

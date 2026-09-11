@@ -156,6 +156,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
             'target_site' => $targetSite,
             'ai_title'    => $aiTitle,
             'ai_desc'     => $aiDesc,
+            'ai_content'  => $aiDesc,
             'image_url'   => $imageUrl,
             'account_id'  => $creds['id']
         ]);
