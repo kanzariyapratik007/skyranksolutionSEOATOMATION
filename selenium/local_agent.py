@@ -128,7 +128,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 def run_server():
-    server = ThreadingHTTPServer(('0.0.0.0', PORT), AgentHandler)
+    server = ThreadingHTTPServer(('127.0.0.1', PORT), AgentHandler)
     print(f"==================================================", flush=True)
     print(f"  SkyRank Local Agent Engine Running", flush=True)
     print(f"  Listening on: http://127.0.0.1:{PORT}", flush=True)
