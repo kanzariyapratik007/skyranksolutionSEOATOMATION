@@ -833,13 +833,26 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass
 
         # ── Step 9: Get URL ────────────────────────────────────────
-        time.sleep(4)
-        for _ in range(12):
-            cu = driver.current_url
+        time.sleep(3)
+        for i in range(25):
+            cu = (driver.current_url or '').lower()
             if "/pin/" in cu:
-                log(f"Pin created successfully! URL: {cu}")
-                result(True, url=cu)
+                log(f"Pin created successfully! URL: {driver.current_url}")
+                result(True, url=driver.current_url)
                 return
+                
+            # Check created pin toast or links in DOM
+            try:
+                links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/pin/']")
+                for l in links:
+                    href = l.get_attribute('href')
+                    if href and '/pin/' in href:
+                        log(f"Pin created successfully! URL: {href}")
+                        result(True, url=href)
+                        return
+            except Exception:
+                pass
+
             page = driver.page_source
             pin_ids = re.findall(r'/pin/(\d+)', page)
             if pin_ids:
@@ -847,19 +860,8 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 log(f"Pin created successfully! URL: {full_pin_url}")
                 result(True, url=full_pin_url)
                 return
-            time.sleep(2)
 
-        # Check if created pin modal, button or toast link is on screen
-        try:
-            links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/pin/']")
-            for l in links:
-                href = l.get_attribute('href')
-                if href and '/pin/' in href:
-                    log(f"Pin created successfully! URL: {href}")
-                    result(True, url=href)
-                    return
-        except Exception:
-            pass
+            time.sleep(2)
 
         result(False, error="Pin creation could not be verified on Pinterest. Please check if Pinterest requested board selection, title, or captcha.")
 

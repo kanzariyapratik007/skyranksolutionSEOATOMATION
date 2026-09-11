@@ -21,22 +21,32 @@ def make_vertical_pinterest_image(input_path):
         with Image.open(input_path) as im:
             im = im.convert('RGB')
             w, h = im.size
-            # If image is landscape or square (w >= h * 0.85), frame it on a clean vertical 1000x1500 canvas
-            if w >= h * 0.85:
-                target_w, target_h = 1000, 1500
-                canvas = Image.new('RGB', (target_w, target_h), color=(241, 245, 249))
-                scale = target_w / float(w)
-                new_w = target_w
-                new_h = int(h * scale)
-                resized = im.resize((new_w, new_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
-                paste_y = max(0, (target_h - new_h) // 2)
-                canvas.paste(resized, (0, paste_y))
-                out_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
-                canvas.save(out_path, "JPEG", quality=95)
-                print(f"[Agent] Auto-fitted image ({w}x{h}) into vertical Pinterest canvas (1000x1500)", flush=True)
-                return out_path
+            target_w, target_h = 1000, 1500
+            target_ratio = target_w / float(target_h) # 0.6667
+            src_ratio = w / float(h)
+            
+            # Smart Center Crop to 2:3 aspect ratio (1000x1500)
+            if src_ratio > target_ratio:
+                # Source is wider than target ratio
+                scaled_h = target_h
+                scaled_w = int(w * (target_h / float(h)))
+                resized = im.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
+                crop_left = (scaled_w - target_w) // 2
+                cropped = resized.crop((crop_left, 0, crop_left + target_w, target_h))
+            else:
+                # Source is taller than target ratio
+                scaled_w = target_w
+                scaled_h = int(h * (target_w / float(w)))
+                resized = im.resize((scaled_w, scaled_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
+                crop_top = (scaled_h - target_h) // 2
+                cropped = resized.crop((0, crop_top, target_w, crop_top + target_h))
+                
+            out_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
+            cropped.save(out_path, "JPEG", quality=95)
+            print(f"[Agent] Smart Center-Cropped image ({w}x{h}) into HD 1000x1500 Pinterest image", flush=True)
+            return out_path
     except Exception as e:
-        print(f"[Agent] Note: Image auto-fit skip: {e}", flush=True)
+        print(f"[Agent] Note: Image smart-crop skip: {e}", flush=True)
     return input_path
 
 
