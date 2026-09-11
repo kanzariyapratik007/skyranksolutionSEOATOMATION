@@ -755,63 +755,52 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         time.sleep(3)
         published = False
 
-        # Try targeted publish selectors first
-        pub_selectors = [
-            "[data-test-id='board-dropdown-save-button']",
-            "[data-test-id='storyboard-creation-nav-save-button']",
-            "[data-test-id='pin-builder-publish-button']",
-            "button[type='submit']"
-        ]
-        for sel in pub_selectors:
-            try:
-                elems = driver.find_elements(By.CSS_SELECTOR, sel)
-                for el in elems:
-                    if el and el.is_displayed() and el.is_enabled():
-                        js_click(driver, el)
-                        time.sleep(6)
-                        log(f"Published via selector '{sel}'!")
-                        published = True
-                        break
-                if published:
-                    break
-            except Exception as e_pub:
-                pass
+        # Try exact JS click on Pinterest Publish/Save button
+        try:
+            click_success = driver.execute_script("""
+                var pubBtn = document.querySelector("[data-test-id='board-dropdown-save-button'], [data-test-id='storyboard-creation-nav-save-button'], [data-test-id='pin-builder-publish-button']");
+                if (!pubBtn) {
+                    var btns = Array.from(document.querySelectorAll('button'));
+                    pubBtn = btns.find(function(b) {
+                        var t = (b.innerText || b.textContent || '').trim().toLowerCase();
+                        var tid = (b.getAttribute('data-test-id') or '').toLowerCase();
+                        return (t === 'publish' || t === 'save' || t === 'done' || tid.indexOf('publish') !== -1 || tid.indexOf('save-button') !== -1) && b.offsetWidth > 0 && b.offsetHeight > 0;
+                    });
+                }
+                if (pubBtn) {
+                    pubBtn.scrollIntoView({block: 'center'});
+                    pubBtn.click();
+                    return true;
+                }
+                return false;
+            """)
+            if click_success:
+                log("Clicked Publish button via JS!")
+                time.sleep(8)
+                published = True
+        except Exception as e_js_pub:
+            log(f"JS publish click note: {e_js_pub}")
 
         if not published:
-            for attempt in range(4):
-                found_any = False
-                candidates = []
-                for tag in ('button', 'div', 'span'):
-                    for el in driver.find_elements(By.TAG_NAME, tag):
-                        try:
-                            txt = (el.text or '').strip().lower()
-                            test_id = (el.get_attribute('data-test-id') or '').lower()
-                            if not el.is_displayed():
-                                continue
-                            if txt in ('create new', 'add products', 'create'):
-                                continue
-                            if (txt in ('publish', 'save', 'done') or 
-                                'publish' in test_id or 
-                                'save-button' in test_id or 
-                                'publish-button' in test_id):
-                                if el.is_enabled():
-                                    candidates.append(el)
-                        except:
-                            pass
-                
-                for btn in candidates:
-                    try:
-                        found_any = True
-                        js_click(driver, btn)
-                        time.sleep(6)
-                        log("Published via candidate click!")
-                        published = True
+            pub_selectors = [
+                "[data-test-id='board-dropdown-save-button']",
+                "[data-test-id='storyboard-creation-nav-save-button']",
+                "[data-test-id='pin-builder-publish-button']"
+            ]
+            for sel in pub_selectors:
+                try:
+                    elems = driver.find_elements(By.CSS_SELECTOR, sel)
+                    for el in elems:
+                        if el and el.is_displayed():
+                            js_click(driver, el)
+                            time.sleep(8)
+                            log(f"Published via selector '{sel}'!")
+                            published = True
+                            break
+                    if published:
                         break
-                    except Exception as ex:
-                        log(f"Publish click: {ex}")
-                if published:
-                    break
-                time.sleep(2)
+                except Exception:
+                    pass
 
         # ── Step 9: Get URL ────────────────────────────────────────
         time.sleep(5)
