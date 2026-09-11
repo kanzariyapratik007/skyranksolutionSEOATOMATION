@@ -237,6 +237,20 @@ def js_set_value(driver, el, value):
 def set_input_value(driver, el, value):
     js_set_value(driver, el, value)
 
+def safe_get(driver, url, max_retries=3, delay=3):
+    for i in range(max_retries):
+        try:
+            log(f"Navigating to {url} (Attempt {i+1}/{max_retries})...")
+            driver.get(url)
+            time.sleep(delay)
+            current = (driver.current_url or '').lower()
+            if "neterror" not in current and "chrome-error" not in current:
+                return True
+        except Exception as e:
+            log(f"Navigation attempt {i+1} failed: {e}")
+            time.sleep(delay * (i + 1))
+    return False
+
 def pinterest_post(email, password, keyword, target_site, image_path=None, ai_title="", ai_content="", proxy=None):
     log(f"Starting Pinterest post with email: {email}")
     driver = get_driver(email, proxy=proxy)
@@ -247,8 +261,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
     try:
         log("Opening Pinterest...")
-        driver.get("https://www.pinterest.com/pin-builder/")
-        time.sleep(4)
+        if not safe_get(driver, "https://www.pinterest.com/pin-builder/"):
+            log("Initial pin-builder navigation returned error — retrying main page...")
+            safe_get(driver, "https://www.pinterest.com/")
+            time.sleep(3)
 
         current = driver.current_url.lower()
         needs_login = ("login" in current or "signup" in current or len(driver.find_elements(By.CSS_SELECTOR, "input#email, input[type='email'], input[name='id']")) > 0)
@@ -256,7 +272,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         if needs_login:
             log("Not logged in — navigating to login page...")
             if "login" not in current:
-                driver.get("https://www.pinterest.com/login/")
+                safe_get(driver, "https://www.pinterest.com/login/")
                 time.sleep(3)
 
             log("Locating email input...")
@@ -365,7 +381,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         # ── Step 2: Pin Creation Tool ──────────────────────────────
         if "pin-builder" not in driver.current_url.lower():
             log("Opening Pin creation tool (pin-builder)...")
-            driver.get("https://www.pinterest.com/pin-builder/")
+            safe_get(driver, "https://www.pinterest.com/pin-builder/")
             time.sleep(5)
         log("Pin builder ready")
 
