@@ -73,9 +73,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
         if (empty($keyword)) $keyword = $proj['target_keyword'];
         if (empty($targetSite)) $targetSite = $proj['target_site'] ?: $proj['website_url'];
 
-        $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
-        $credStmt->execute([$pId, $userId, $platform]);
+        $accId = (int)($_GET['account_id'] ?? 0);
+        if ($accId > 0) {
+            $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE id=? AND (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active'");
+            $credStmt->execute([$accId, $pId, $userId, $platform]);
+        } else {
+            $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active' ORDER BY (project_id=?) DESC, id DESC LIMIT 1");
+            $credStmt->execute([$pId, $userId, $platform, $pId]);
+        }
         $creds = $credStmt->fetch();
+
         if (!$creds) {
             echo json_encode(['error' => 'No active credentials found for ' . $platform]);
             exit;
@@ -1160,6 +1167,11 @@ function renderPrimaryConsoleTableHtml($db, $selectedProjectId, $currentKeyword,
                             }
                           ?>
                         </span>
+                        <button class="btn btn-xs btn-outline-success py-0 px-1"
+                                onclick="autoPost('<?= $site['id'] ?>', '<?= $site['name'] ?>', <?= (int)$selectedProjectId ?>, <?= $acc['id'] ?>)"
+                                title="Post using this specific account">
+                          <i class="fas fa-play"></i>
+                        </button>
                         <button class="btn btn-xs btn-outline-secondary py-0 px-1"
                                 onclick='editCredForm(<?= json_encode($acc, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>, <?= json_encode($site['id']) ?>, <?= json_encode($site['name']) ?>, <?= (int)$selectedProjectId ?>)'
                                 title="Edit Credentials / Token / Password">
@@ -2673,7 +2685,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(checkPcAgentStatus, 5000);
 });
 
-function runLocalAgentPost(platformId, platformName, projectId) {
+function runLocalAgentPost(platformId, platformName, projectId, accountId) {
   const modal = new bootstrap.Modal(document.getElementById('postModal'));
   document.getElementById('postingStatus').innerHTML = `🚀 Preparing ${platformName} Auto-Post...`;
   document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Fetching credentials from AWS Database & generating AI title/image...`;
@@ -2685,8 +2697,10 @@ function runLocalAgentPost(platformId, platformName, projectId) {
   const siteUrl = siteSelect ? encodeURIComponent(siteSelect.value) : '';
 
   const curProjId = projectId || (typeof PROJECT_ID !== 'undefined' ? PROJECT_ID : 0);
+  const accParam = accountId ? `&account_id=${accountId}` : '';
   // Step 1: Get payload from AWS DB
-  fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${curProjId}&keyword=${kw}&target_site=${siteUrl}`)
+  fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${curProjId}&keyword=${kw}&target_site=${siteUrl}${accParam}`)
+
     .then(r => r.text())
     .then(text => {
       let data;
@@ -2793,13 +2807,13 @@ function submitHiddenForm(targetUrl, payload) {
   console.log('[SkyRank Bridge] Submitted payload via Form to target:', targetUrl);
 }
 
-function autoPost(platformId, platformName, projectId) {
-  autoPostAll(platformId, platformName, projectId);
+function autoPost(platformId, platformName, projectId, accountId) {
+  autoPostAll(platformId, platformName, projectId, accountId);
 }
 
-function autoPostAll(platformId, platformName, projectId) {
+function autoPostAll(platformId, platformName, projectId, accountId) {
   if (platformId === 'pinterest') {
-    runLocalAgentPost(platformId, platformName, projectId);
+    runLocalAgentPost(platformId, platformName, projectId, accountId);
     return;
   }
   runServerAutoPostAll(platformId, platformName, projectId);
