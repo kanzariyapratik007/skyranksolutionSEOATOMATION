@@ -88,11 +88,17 @@ class AgentHandler(BaseHTTPRequestHandler):
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)
             
+            payload = {}
             try:
                 payload = json.loads(post_data.decode('utf-8'))
-            except Exception as e:
-                self._send_json_response(400, {"success": False, "error": f"Invalid JSON: {e}"})
-                return
+            except Exception:
+                try:
+                    import urllib.parse
+                    parsed = urllib.parse.parse_qs(post_data.decode('utf-8'))
+                    payload = {k: v[0] for k, v in parsed.items()}
+                except Exception as e:
+                    self._send_json_response(400, {"success": False, "error": f"Invalid payload: {e}"})
+                    return
 
             email       = payload.get('email', '')
             password    = payload.get('password', '')
@@ -152,7 +158,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 def run_server():
-    server = ThreadingHTTPServer(('127.0.0.1', PORT), AgentHandler)
+    server = ThreadingHTTPServer(('0.0.0.0', PORT), AgentHandler)
     print(f"==================================================", flush=True)
     print(f"  SkyRank Local Agent Engine Running", flush=True)
     print(f"  Listening on: http://127.0.0.1:{PORT}", flush=True)

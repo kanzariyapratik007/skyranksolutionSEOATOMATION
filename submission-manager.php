@@ -2645,30 +2645,36 @@ function runLocalAgentPost(platformId, platformName, projectId) {
       document.getElementById('postingStatus').innerHTML = `🤖 Opening Chrome on your PC...`;
       document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Running Selenium on your PC for account <strong>${data.email}</strong>... Please do not close Chrome.`;
 
-      // Step 2: Post via Local PC Agent
-      return fetch(`${LOCAL_AGENT_URL}/run_pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: data.email,
-          password: data.password,
-          keyword: data.keyword,
-          target_site: data.target_site,
-          image_url: data.image_url,
-          ai_title: data.ai_title,
-          ai_desc: data.ai_desc
-        })
-      })
-      .then(r => r.text())
-      .then(text => {
-        let result;
-        try {
-          result = JSON.parse(text);
-        } catch(e) {
-          throw new Error('Local Agent response error: ' + text.slice(0, 150));
-        }
-        return { result, payload: data };
+      // Step 2: Post via Local PC Agent (with localhost fallback)
+      const postPackage = JSON.stringify({
+        email: data.email,
+        password: data.password,
+        keyword: data.keyword,
+        target_site: data.target_site,
+        image_url: data.image_url,
+        ai_title: data.ai_title,
+        ai_desc: data.ai_desc
       });
+
+      const tryAgentPost = (url) => {
+        return fetch(`${url}/run_pin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: postPackage
+        }).then(r => r.text());
+      };
+
+      return tryAgentPost('http://127.0.0.1:8989')
+        .catch(() => tryAgentPost('http://localhost:8989'))
+        .then(text => {
+          let result;
+          try {
+            result = JSON.parse(text);
+          } catch(e) {
+            throw new Error('Local Agent response error: ' + (text ? text.slice(0, 150) : 'Empty local response'));
+          }
+          return { result, payload: data };
+        });
     })
     .then(({ result, payload }) => {
       if (result.success) {
