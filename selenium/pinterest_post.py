@@ -769,7 +769,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     var btns = Array.from(document.querySelectorAll('button'));
                     pubBtn = btns.find(function(b) {
                         var t = (b.innerText || b.textContent || '').trim().toLowerCase();
-                        var tid = (b.getAttribute('data-test-id') or '').toLowerCase();
+                        var tid = (b.getAttribute('data-test-id') || '').toLowerCase();
                         return (t === 'publish' || t === 'save' || t === 'done' || tid.indexOf('publish') !== -1 || tid.indexOf('save-button') !== -1) && b.offsetWidth > 0 && b.offsetHeight > 0;
                     });
                 }
