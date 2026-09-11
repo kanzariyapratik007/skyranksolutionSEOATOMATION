@@ -1235,16 +1235,17 @@ function renderPrimaryConsoleTableHtml($db, $selectedProjectId, $currentKeyword,
                   <?php endif; ?>
                 </td>
                 <td>
-                  <?php if ($cooldown['is_cooldown']): ?>
-                    <span class="text-muted fw-bold"><i class="fas fa-clock me-1"></i>Wait <?= $cooldown['time_str'] ?></span>
-                  <?php elseif (!empty($allAccounts) && (!isset($site['autopost']) || $site['autopost'] !== false)): ?>
+                  <?php if (!empty($allAccounts) && (!isset($site['autopost']) || $site['autopost'] !== false)): ?>
                     <button class="btn btn-sm btn-success"
                             onclick="autoPostAll('<?= $site['id'] ?>', '<?= $site['name'] ?>', <?= $selectedProjectId ?>, <?= count($allAccounts) ?>)">
                       <i class="fas fa-paper-plane me-1"></i>Auto Post
-                      <?php if (count($allAccounts) > 1): ?>
+                      <?php if ($cooldown['is_cooldown']): ?>
+                        <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;"><?= $cooldown['time_str'] ?></span>
+                      <?php elseif (count($allAccounts) > 1): ?>
                         <span class="badge bg-warning text-dark ms-1"><?= count($allAccounts) ?> accounts</span>
                       <?php endif; ?>
                     </button>
+
                   <?php elseif (isset($site['autopost']) && $site['autopost'] === false): ?>
                     <span class="text-muted small">Coming Soon</span>
                   <?php else: ?>
