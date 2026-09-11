@@ -2506,15 +2506,41 @@ function setPcAgentOffline() {
 }
 
 function checkPcAgentStatus() {
-  console.log('[SkyRank Bridge] Checking PC Agent health via Script Injection...');
+  console.log('[SkyRank Bridge] Checking PC Agent health...');
   
+  const safeFetch = (url) => {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timeout')), 2000);
+      fetch(url)
+        .then(r => { clearTimeout(timer); resolve(r); })
+        .catch(err => { clearTimeout(timer); reject(err); });
+    });
+  };
+
+  // Primary: Fast CORS fetch
+  safeFetch('http://127.0.0.1:8989/health')
+    .then(r => r.json())
+    .then(data => {
+      if (data && data.status === 'active') {
+        console.log('[SkyRank Bridge] Connected via 127.0.0.1 CORS!');
+        setPcAgentOnline('http://127.0.0.1:8989');
+      } else {
+        triggerScriptProbeFallback();
+      }
+    })
+    .catch(() => {
+      triggerScriptProbeFallback();
+    });
+}
+
+function triggerScriptProbeFallback() {
   const oldScript = document.getElementById('pcAgentScriptProbe');
   if (oldScript) oldScript.remove();
 
   let scriptDetected = false;
   window.onSkyRankAgentReady = function() {
     scriptDetected = true;
-    console.log('[SkyRank Bridge] Connected via Script Injection!');
+    console.log('[SkyRank Bridge] Connected via Script Probe!');
     setPcAgentOnline('http://127.0.0.1:8989');
   };
 
@@ -2522,43 +2548,13 @@ function checkPcAgentStatus() {
   script.id = 'pcAgentScriptProbe';
   script.src = 'http://127.0.0.1:8989/health_js?t=' + Date.now();
   script.onerror = function() {
-    if (!scriptDetected) {
-      checkPcAgentFetchFallback();
-    }
+    if (!scriptDetected) setPcAgentOffline();
   };
   document.head.appendChild(script);
 
   setTimeout(() => {
-    if (!scriptDetected) {
-      checkPcAgentFetchFallback();
-    }
+    if (!scriptDetected) setPcAgentOffline();
   }, 1500);
-}
-
-function checkPcAgentFetchFallback() {
-  const safeFetch = (url, opts) => {
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout')), 2000);
-      fetch(url, opts || {})
-        .then(r => { clearTimeout(timer); resolve(r); })
-        .catch(err => { clearTimeout(timer); reject(err); });
-    });
-  };
-
-  safeFetch('http://127.0.0.1:8989/health')
-    .then(r => r.json())
-    .then(data => {
-      if (data && data.status === 'active') {
-        setPcAgentOnline('http://127.0.0.1:8989');
-      } else {
-        setPcAgentOffline();
-      }
-    })
-    .catch(() => {
-      safeFetch('http://127.0.0.1:8989/health', { mode: 'no-cors' })
-        .then(() => setPcAgentOnline('http://127.0.0.1:8989'))
-        .catch(() => setPcAgentOffline());
-    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
