@@ -44,83 +44,96 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
     ini_set('display_errors', '0');
     header('Content-Type: application/json');
     
-    $pId = (int)($_GET['project_id'] ?? 0);
-    $platform = clean($_GET['platform'] ?? 'pinterest');
-    $keyword = !empty($_GET['keyword']) ? clean($_GET['keyword']) : '';
-    $targetSite = !empty($_GET['target_site']) ? clean($_GET['target_site']) : '';
-
-    if (empty($userId)) {
-        echo json_encode(['error' => 'User session expired. Please refresh the page to log in.']);
-        exit;
-    }
-
-    if ($pId <= 0) {
-        $stmtP = $db->prepare("SELECT id FROM projects WHERE user_id=? ORDER BY id ASC LIMIT 1");
-        $stmtP->execute([$userId]);
-        $pRow = $stmtP->fetch();
-        if ($pRow) $pId = (int)$pRow['id'];
-    }
-
-    $stmt = $db->prepare("SELECT * FROM projects WHERE id=?");
-    $stmt->execute([$pId]);
-    $proj = $stmt->fetch();
-    if (!$proj) {
-        echo json_encode(['error' => 'Project #' . $pId . ' not found in DB']);
-        exit;
-    }
-
-    if (empty($keyword)) $keyword = $proj['target_keyword'];
-    if (empty($targetSite)) $targetSite = $proj['target_site'] ?: $proj['website_url'];
-
-    $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
-    $credStmt->execute([$pId, $userId, $platform]);
-    $creds = $credStmt->fetch();
-    if (!$creds) {
-        echo json_encode(['error' => 'No active credentials found for ' . $platform]);
-        exit;
-    }
-
-    $email = $creds['username'] ?? '';
-    $pass  = decodePass($creds['password'] ?? '');
-
-    // Generate AI Title & Description
-    $aiTitle = "Best " . $keyword . " - 2026 Guide";
-    $aiDesc  = "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
-    
     try {
-        require_once 'ai-content.php';
-        $genTitle = generateAITitle($keyword);
-        $genDesc  = generateAIDescription($keyword, $targetSite);
-        if (!empty($genTitle)) $aiTitle = $genTitle;
-        if (!empty($genDesc)) $aiDesc = $genDesc;
-    } catch (Throwable $e) {}
+        $pId = (int)($_GET['project_id'] ?? 0);
+        $platform = clean($_GET['platform'] ?? 'pinterest');
+        $keyword = !empty($_GET['keyword']) ? clean($_GET['keyword']) : '';
+        $targetSite = !empty($_GET['target_site']) ? clean($_GET['target_site']) : '';
 
-    // Marketing image if available
-    $imageUrl = '';
-    $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
-    try {
-        require_once 'image-generator.php';
-        $phone = $creds['phone'] ?? '9036354554';
-        $imgEmail = $email ?: 'office.learnmore@gmail.com';
-        generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
-    } catch (Throwable $e) {}
+        if (empty($userId)) {
+            echo json_encode(['error' => 'User session expired. Please refresh the page to log in.']);
+            exit;
+        }
 
-    if (file_exists($verticalImg)) {
-        $imageUrl = SITE_URL . "/uploads/project_{$pId}_vertical.jpg";
+        if ($pId <= 0) {
+            $stmtP = $db->prepare("SELECT id FROM projects WHERE user_id=? ORDER BY id ASC LIMIT 1");
+            $stmtP->execute([$userId]);
+            $pRow = $stmtP->fetch();
+            if ($pRow) $pId = (int)$pRow['id'];
+        }
+
+        $stmt = $db->prepare("SELECT * FROM projects WHERE id=?");
+        $stmt->execute([$pId]);
+        $proj = $stmt->fetch();
+        if (!$proj) {
+            echo json_encode(['error' => 'Project #' . $pId . ' not found in DB']);
+            exit;
+        }
+
+        if (empty($keyword)) $keyword = $proj['target_keyword'];
+        if (empty($targetSite)) $targetSite = $proj['target_site'] ?: $proj['website_url'];
+
+        $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
+        $credStmt->execute([$pId, $userId, $platform]);
+        $creds = $credStmt->fetch();
+        if (!$creds) {
+            echo json_encode(['error' => 'No active credentials found for ' . $platform]);
+            exit;
+        }
+
+        $email = $creds['username'] ?? '';
+        $rawPass = $creds['password'] ?? '';
+        $pass = function_exists('decodePass') ? decodePass($rawPass) : base64_decode($rawPass);
+
+        // Generate AI Title & Description
+        $aiTitle = "Best " . $keyword . " - 2026 Guide";
+        $aiDesc  = "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
+        
+        try {
+            require_once 'ai-content.php';
+            if (function_exists('generateAITitle')) {
+                $genTitle = generateAITitle($keyword);
+                if (!empty($genTitle)) $aiTitle = $genTitle;
+            }
+            if (function_exists('generateAIDescription')) {
+                $genDesc  = generateAIDescription($keyword, $targetSite);
+                if (!empty($genDesc)) $aiDesc = $genDesc;
+            }
+        } catch (Throwable $e) {}
+
+        // Marketing image if available
+        $imageUrl = '';
+        $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
+        try {
+            require_once 'image-generator.php';
+            if (function_exists('generateMarketingImage')) {
+                $phone = $creds['phone'] ?? '9036354554';
+                $imgEmail = $email ?: 'office.learnmore@gmail.com';
+                generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
+            }
+        } catch (Throwable $e) {}
+
+        if (file_exists($verticalImg)) {
+            $imageUrl = SITE_URL . "/uploads/project_{$pId}_vertical.jpg";
+        }
+
+        echo json_encode([
+            'success'     => true,
+            'email'       => $email,
+            'password'    => $pass,
+            'keyword'     => $keyword,
+            'target_site' => $targetSite,
+            'ai_title'    => $aiTitle,
+            'ai_desc'     => $aiDesc,
+            'image_url'   => $imageUrl,
+            'account_id'  => $creds['id']
+        ]);
+        exit;
+
+    } catch (Throwable $e) {
+        echo json_encode(['error' => 'Payload Exception: ' . $e->getMessage()]);
+        exit;
     }
-
-    echo json_encode([
-        'success'     => true,
-        'email'       => $email,
-        'password'    => $pass,
-        'keyword'     => $keyword,
-        'target_site' => $targetSite,
-        'ai_title'    => $aiTitle,
-        'ai_desc'     => $aiDesc,
-        'image_url'   => $imageUrl,
-        'account_id'  => $creds['id']
-    ]);
-    exit;
 }
 
 // Handle AJAX Save Local Backlink Result
