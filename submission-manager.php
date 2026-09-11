@@ -128,20 +128,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
             }
         } catch (Throwable $e) {}
 
-        // Marketing image if available
+        // Resolve user-uploaded image for project
         $imageUrl = '';
-        $verticalImg = __DIR__ . "/uploads/project_{$pId}_vertical.jpg";
-        try {
-            require_once 'image-generator.php';
-            if (function_exists('generateMarketingImage')) {
-                $phone = $creds['phone'] ?? '9036354554';
-                $imgEmail = $email ?: 'office.learnmore@gmail.com';
-                generateMarketingImage($keyword, $targetSite, $phone, $imgEmail, $verticalImg, true);
+        if (!empty($proj['post_image']) && file_exists(__DIR__ . "/uploads/" . $proj['post_image'])) {
+            $imageUrl = SITE_URL . "/uploads/" . $proj['post_image'];
+        } else {
+            // Check any matching uploaded file for this project
+            $projectFiles = glob(__DIR__ . "/uploads/project_{$pId}_*");
+            if (!empty($projectFiles)) {
+                usort($projectFiles, function($a, $b) { return filemtime($b) - filemtime($a); });
+                $imageUrl = SITE_URL . "/uploads/" . basename($projectFiles[0]);
             }
-        } catch (Throwable $e) {}
-
-        if (file_exists($verticalImg)) {
-            $imageUrl = SITE_URL . "/uploads/project_{$pId}_vertical.jpg";
         }
 
         echo json_encode([
