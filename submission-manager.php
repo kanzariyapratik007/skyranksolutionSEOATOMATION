@@ -25,7 +25,7 @@ try {
 
 // Handle AJAX keyword / target site url updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_targets'])) {
-    while (ob_get_level()) ob_end_clean();
+    if (ob_get_length()) ob_clean();
     header('Content-Type: application/json');
     $pId = (int)($_POST['project_id'] ?? 0);
     $targetKeywords = trim($_POST['target_keywords'] ?? '');
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
 
 // Handle AJAX Local Agent payload request
 if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
-    while (ob_get_level()) ob_end_clean();
+    if (ob_get_length()) ob_clean();
     ini_set('display_errors', '0');
     header('Content-Type: application/json');
     
@@ -2614,15 +2614,16 @@ function runLocalAgentPost(platformId, platformName, projectId) {
   const siteSelect = document.getElementById('backlinkUrlSelect');
   const siteUrl = siteSelect ? encodeURIComponent(siteSelect.value) : '';
 
+  const curProjId = projectId || (typeof PROJECT_ID !== 'undefined' ? PROJECT_ID : 0);
   // Step 1: Get payload from AWS DB
-  fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${projectId}&keyword=${kw}&target_site=${siteUrl}`)
+  fetch(`submission-manager.php?action=get_local_payload&platform=${platformId}&project_id=${curProjId}&keyword=${kw}&target_site=${siteUrl}`)
     .then(r => r.text())
     .then(text => {
       let data;
       try {
         data = JSON.parse(text);
       } catch(e) {
-        throw new Error('Server JSON error: ' + text.slice(0, 150));
+        throw new Error('Server JSON error: ' + (text ? text.slice(0, 150) : '(Empty Response - Please check DB connection)'));
       }
       if (!data.success) {
         throw new Error(data.error || 'Failed to fetch credentials from DB');
