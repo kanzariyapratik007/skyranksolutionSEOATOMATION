@@ -2506,23 +2506,48 @@ function setPcAgentOffline() {
 }
 
 function checkPcAgentStatus() {
-  console.log('[SkyRank Bridge] Checking PC Agent health...');
-  
+  console.log('[SkyRank Bridge] Checking PC Agent health via WebSocket/CORS...');
+  let connected = false;
+
+  // 1. Try WebSocket (100% exempted from Chrome Private Network Access PNA restrictions)
+  try {
+    const ws = new WebSocket('ws://127.0.0.1:8989');
+    const wsTimer = setTimeout(() => {
+      if (!connected) checkPcAgentFetchFallback();
+      try { ws.close(); } catch(e){}
+    }, 1200);
+
+    ws.onopen = function() {
+      connected = true;
+      clearTimeout(wsTimer);
+      console.log('[SkyRank Bridge] Connected via WebSocket PNA bypass!');
+      setPcAgentOnline('http://127.0.0.1:8989');
+      try { ws.close(); } catch(e){}
+    };
+
+    ws.onerror = function() {
+      if (!connected) checkPcAgentFetchFallback();
+    };
+  } catch (e) {
+    checkPcAgentFetchFallback();
+  }
+}
+
+function checkPcAgentFetchFallback() {
   const safeFetch = (url) => {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timeout')), 2000);
+      const timer = setTimeout(() => reject(new Error('Timeout')), 1500);
       fetch(url)
         .then(r => { clearTimeout(timer); resolve(r); })
         .catch(err => { clearTimeout(timer); reject(err); });
     });
   };
 
-  // Primary: Fast CORS fetch
   safeFetch('http://127.0.0.1:8989/health')
     .then(r => r.json())
     .then(data => {
       if (data && data.status === 'active') {
-        console.log('[SkyRank Bridge] Connected via 127.0.0.1 CORS!');
+        console.log('[SkyRank Bridge] Connected via CORS fetch!');
         setPcAgentOnline('http://127.0.0.1:8989');
       } else {
         triggerScriptProbeFallback();
@@ -2554,7 +2579,7 @@ function triggerScriptProbeFallback() {
 
   setTimeout(() => {
     if (!scriptDetected) setPcAgentOffline();
-  }, 1500);
+  }, 1200);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

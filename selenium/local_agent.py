@@ -41,6 +41,20 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.headers.get('Upgrade', '').lower() == 'websocket':
+            key = self.headers.get('Sec-WebSocket-Key', '')
+            if key:
+                import hashlib, base64
+                GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+                accept_key = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+                self.send_response(101, 'Switching Protocols')
+                self.send_header('Upgrade', 'websocket')
+                self.send_header('Connection', 'Upgrade')
+                self.send_header('Sec-WebSocket-Accept', accept_key)
+                self.end_headers()
+                print("[Agent] WebSocket health check paired successfully!", flush=True)
+                return
+
         if self.path.startswith('/health_js'):
             body = "if(window.onSkyRankAgentReady) window.onSkyRankAgentReady();".encode('utf-8')
             self.send_response(200)
