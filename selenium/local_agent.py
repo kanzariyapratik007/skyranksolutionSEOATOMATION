@@ -143,9 +143,25 @@ class AgentHandler(BaseHTTPRequestHandler):
             ai_title    = payload.get('ai_title', '')
             ai_content  = payload.get('ai_content', '')
 
-            # Ensure local image path exists for upload
+            is_form = 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', '')
+
+            # Ensure local image path exists for upload (Strictly NO AI image fallbacks)
             image_path = ensure_local_image(image_path, image_url, keyword)
 
+            if not image_path or not os.path.exists(image_path) or os.path.getsize(image_path) < 500:
+                err_res = {"success": False, "error": "❌ No uploaded image found for this project. Please upload an image first before auto posting."}
+                if is_form:
+                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_res)});}}</script></body></html>".encode('utf-8')
+                    self.send_response(400)
+                    self._send_cors_headers()
+                    self.send_header('Content-Type', 'text/html')
+                    self.send_header('Content-Length', str(len(html_body)))
+                    self.send_header('Connection', 'close')
+                    self.end_headers()
+                    self.wfile.write(html_body)
+                else:
+                    self._send_json_response(400, err_res)
+                return
 
             print(f"[Agent] Executing Pinterest post for: {email}...", flush=True)
 
@@ -155,8 +171,6 @@ class AgentHandler(BaseHTTPRequestHandler):
                 email, password, keyword, target_site,
                 image_path or "", ai_title or "", ai_content or ""
             ]
-
-            is_form = 'application/x-www-form-urlencoded' in self.headers.get('Content-Type', '')
 
             try:
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)

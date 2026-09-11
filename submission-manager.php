@@ -128,21 +128,23 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
             }
         } catch (Throwable $e) {}
 
-        // Resolve exact user-uploaded image for project
+        // Resolve exact user-uploaded image for project (Strictly NO AI poster fallbacks)
         $imageUrl = '';
         if (!empty($proj['post_image']) && file_exists(__DIR__ . "/uploads/" . $proj['post_image'])) {
             $imageUrl = SITE_URL . "/uploads/" . $proj['post_image'];
         } else {
-            // Check matching uploaded files for this project, prioritizing manual uploads over AI generated posters
+            // Check matching uploaded files for this project, strictly excluding AI generated posters
             $projectFiles = glob(__DIR__ . "/uploads/project_{$pId}_*");
             if (!empty($projectFiles)) {
                 $manualUploads = array_filter($projectFiles, function($f) {
                     $fn = strtolower(basename($f));
                     return strpos($fn, '_ai_') === false && strpos($fn, 'poster_') === false && strpos($fn, 'pollinations') === false;
                 });
-                $targetFiles = !empty($manualUploads) ? array_values($manualUploads) : $projectFiles;
-                usort($targetFiles, function($a, $b) { return filemtime($b) - filemtime($a); });
-                $imageUrl = SITE_URL . "/uploads/" . basename($targetFiles[0]);
+                if (!empty($manualUploads)) {
+                    $manualUploads = array_values($manualUploads);
+                    usort($manualUploads, function($a, $b) { return filemtime($b) - filemtime($a); });
+                    $imageUrl = SITE_URL . "/uploads/" . basename($manualUploads[0]);
+                }
             }
         }
 
