@@ -603,15 +603,30 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except:
                 continue
         if lf:
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", lf)
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", lf)
             time.sleep(0.3)
-            js_click(driver, lf)
+            try:
+                js_click(driver, lf)
+            except Exception:
+                pass
             time.sleep(0.2)
             try:
                 lf.clear()
-                lf.send_keys(target_site)
             except Exception:
-                driver.execute_script("arguments[0].value = arguments[1]; arguments[0].dispatchEvent(new Event('input', {bubbles: true})); arguments[0].dispatchEvent(new Event('change', {bubbles: true}));", lf, target_site)
+                pass
+            driver.execute_script("""
+                var el = arguments[0], val = arguments[1];
+                if (el) {
+                    el.focus();
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        if (setter) setter.call(el, val); else el.value = val;
+                    } else { el.innerText = val; }
+                    el.dispatchEvent(new Event('input', {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            """, lf, target_site)
+            time.sleep(0.3)
             log("Link OK!")
         else:
             log("Link element not found via selectors")
@@ -622,15 +637,22 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         try:
             bb = None
-            try:
-                bb = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-test-id='board-dropdown-select-button']")))
-            except:
-                pass
-            if not bb:
-                for cand in driver.find_elements(By.XPATH, "//*[contains(text(), 'Choose a board') or contains(text(), 'board') or contains(text(), 'Board')]"):
-                    if cand.is_displayed():
-                        bb = cand
+            board_selectors = [
+                "[data-test-id='board-dropdown-select-button']",
+                "button[aria-label*='board' i]",
+                "button[aria-label*='Board' i]",
+                "[data-test-id='board-dropdown-select-button'] button",
+                "div[data-test-id='board-dropdown']"
+            ]
+            for sel in board_selectors:
+                try:
+                    elems = driver.find_elements(By.CSS_SELECTOR, sel)
+                    if elems and elems[0].is_displayed():
+                        bb = elems[0]
                         break
+                except Exception:
+                    continue
+
             if bb:
                 driver.execute_script("arguments[0].scrollIntoView({block:'center'});", bb)
                 time.sleep(0.5)
