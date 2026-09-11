@@ -395,6 +395,25 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             except Exception as e_gen:
                 log(f"Local image gen error: {e_gen}")
 
+        def prepare_optimized_image(img_path):
+            if not img_path or not os.path.exists(img_path):
+                return img_path
+            try:
+                from PIL import Image
+                opt_path = "/tmp/pinterest_opt_upload.jpg"
+                with Image.open(img_path) as im:
+                    im = im.convert("RGB")
+                    im.thumbnail((800, 1200))
+                    im.save(opt_path, "JPEG", quality=80, optimize=True)
+                if os.path.exists(opt_path) and os.path.getsize(opt_path) > 100:
+                    log(f"Optimized upload image size: {os.path.getsize(opt_path)//1024} KB")
+                    return opt_path
+            except Exception as e_opt:
+                log(f"Image optimize note: {e_opt}")
+            return img_path
+
+        real_image_path = prepare_optimized_image(real_image_path)
+
         image_uploaded = False
         if is_valid_file(real_image_path):
             log(f"Uploading image: {real_image_path}...")
@@ -411,7 +430,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 if up:
                     driver.execute_script("arguments[0].style.display='block'; arguments[0].style.opacity='1'; arguments[0].style.visibility='visible';", up)
                     up.send_keys(os.path.abspath(real_image_path))
-                    time.sleep(6)
+                    time.sleep(3)
                     log("Image uploaded!")
                     image_uploaded = True
             except Exception as e:
