@@ -757,19 +757,3 @@ function generateImageWithDalle(string $prompt, string $outputPath, ?string $api
     file_put_contents($outputPath, $imageData);
     return ['success' => true, 'source' => 'ChatGPT DALL-E 3'];
 }
-
-if (!function_exists('generateAITitle')) {
-    function generateAITitle(string $keyword): string {
-        return generateUniqueTitle($keyword);
-    }
-}
-
-if (!function_exists('generateAIDescription')) {
-    function generateAIDescription(string $keyword, string $targetSite, string $platform = 'pinterest'): string {
-        $res = generateAIContent($keyword, $targetSite, $platform, 'image_caption');
-        if (!empty($res['content'])) {
-            return trim(strip_tags($res['content']));
-        }
-        return "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
-    }
-}
