@@ -262,68 +262,55 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             log("Locating email input...")
             email_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#email, input[type='email'], input[name='id'], input[name='username']")))
             driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", email_field)
-            time.sleep(0.3)
+            time.sleep(0.2)
             try:
                 email_field.clear()
             except Exception:
                 pass
             for ch in str(email):
                 email_field.send_keys(ch)
-                time.sleep(0.03)
-            driver.execute_script("""
-                var el = arguments[0], val = arguments[1];
-                var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                if (setter) setter.call(el, val);
-                el.dispatchEvent(new Event('input', {bubbles: true}));
-                el.dispatchEvent(new Event('change', {bubbles: true}));
-            """, email_field, email)
-            time.sleep(0.5)
+                time.sleep(0.02)
+            js_set_value(driver, email_field, email)
+            time.sleep(0.3)
 
             log("Locating password input...")
             pass_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input#password, input[type='password'], input[name='password']")))
             driver.execute_script("arguments[0].scrollIntoView({block:'center'}); arguments[0].focus();", pass_field)
-            time.sleep(0.3)
+            time.sleep(0.2)
             try:
                 pass_field.clear()
             except Exception:
                 pass
             for ch in str(password):
                 pass_field.send_keys(ch)
-                time.sleep(0.03)
-            driver.execute_script("""
-                var el = arguments[0], val = arguments[1];
-                var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                if (setter) setter.call(el, val);
-                el.dispatchEvent(new Event('input', {bubbles: true}));
-                el.dispatchEvent(new Event('change', {bubbles: true}));
-            """, pass_field, password)
-            time.sleep(1)
-
-            submit_btn = None
-            try:
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "[data-test-id='registerFormSubmitButton'], button[type='submit']")
-            except Exception:
-                pass
-            if not submit_btn:
-                for b in driver.find_elements(By.TAG_NAME, "button"):
-                    txt = (b.text or '').strip().lower()
-                    if txt in ["log in", "login"]:
-                        submit_btn = b
-                        break
+                time.sleep(0.02)
+            js_set_value(driver, pass_field, password)
+            time.sleep(0.5)
 
             log("Clicking Login button...")
-            if submit_btn:
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", submit_btn)
-                time.sleep(0.3)
-                try:
-                    submit_btn.click()
-                except Exception:
-                    driver.execute_script("arguments[0].click();", submit_btn)
-            else:
-                driver.execute_script("""
-                    var b = document.querySelector("[data-test-id='registerFormSubmitButton'], button[type='submit']");
-                    if (b) b.click();
-                """)
+            driver.execute_script("""
+                var emailInp = document.querySelector("input#email, input[type='email'], input[name='id'], input[name='username']");
+                var passInp = document.querySelector("input#password, input[type='password'], input[name='password']");
+                var btn = document.querySelector("[data-test-id='registerFormSubmitButton'], button[type='submit']");
+                if (!btn) {
+                    var btns = Array.from(document.querySelectorAll('button'));
+                    btn = btns.find(function(b) {
+                        var t = (b.innerText || b.textContent || '').trim().toLowerCase();
+                        return t === 'log in' || t === 'login';
+                    });
+                }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.removeAttribute('disabled');
+                    btn.scrollIntoView({block: 'center'});
+                    btn.click();
+                }
+                var form = (passInp ? passInp.closest('form') : null) || document.querySelector("form");
+                if (form) {
+                    try { form.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true})); } catch(e) {}
+                }
+            """)
+            time.sleep(0.3)
             try:
                 pass_field.send_keys(Keys.ENTER)
             except Exception:
