@@ -53,11 +53,17 @@ def get_driver(email="default", proxy=None):
         if chrome_bin:
             opts.binary_location = chrome_bin
 
-    # Chrome launch flags optimized for Linux EC2 stability with swap
+    # Chrome launch flags optimized for Linux EC2 stability with strict RAM limits
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
     opts.add_argument('--disable-gpu')
     opts.add_argument('--disable-software-rasterizer')
+    opts.add_argument('--renderer-process-limit=1')
+    opts.add_argument('--js-flags=--max-old-space-size=256')
+    opts.add_argument('--disk-cache-size=1')
+    opts.add_argument('--media-cache-size=1')
+    opts.add_argument('--disable-site-isolation-trials')
+    opts.add_argument('--disable-features=IsolateOrigins,site-per-process,MediaRouter,Translate')
     opts.add_argument('--disable-blink-features=AutomationControlled')
     opts.add_argument('--disable-extensions')
     opts.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -94,11 +100,11 @@ def get_driver(email="default", proxy=None):
         except Exception as e_zip:
             log(f"Cookie restore error: {e_zip}")
 
-    # Clean up lock files and zombie Chrome processes from any previous crashed runs to prevent startup socket error
+    # Clean up lock files and any leftover Chrome processes on Linux
     if sys.platform != "win32":
         try:
-            os.system(f"pkill -9 -f '{profile_dir}' 2>/dev/null")
-            time.sleep(0.3)
+            os.system("pkill -9 -f chrome 2>/dev/null; pkill -9 -f chromedriver 2>/dev/null")
+            time.sleep(0.5)
         except Exception:
             pass
 
