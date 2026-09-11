@@ -75,8 +75,8 @@ if not defined PY_CMD (
     )
 )
 
-echo [1/2] Checking required packages (selenium, requests, pillow)...
-%PY_CMD% -m pip install -q selenium requests pillow >nul 2>nul
+echo [1/2] Checking required packages (selenium, requests, pillow, webdriver-manager)...
+%PY_CMD% -m pip install -q selenium webdriver-manager requests pillow >nul 2>nul
 
 echo [2/2] Starting SkyRank Local Engine on 127.0.0.1:8989...
 echo.

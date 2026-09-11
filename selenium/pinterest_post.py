@@ -27,7 +27,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+try:
+    from webdriver_manager.chrome import ChromeDriverManager
+except ImportError:
+    ChromeDriverManager = None
 
 def log(msg):
     print(json.dumps({"log": msg}), flush=True)
