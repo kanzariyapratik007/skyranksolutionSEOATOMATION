@@ -41,6 +41,15 @@ def get_driver(email="default", proxy=None):
         opts.add_argument('--headless=new')
         opts.add_argument('--disable-gpu')
         opts.add_argument('--disable-software-rasterizer')
+        import shutil
+        chrome_bin = shutil.which('google-chrome') or shutil.which('google-chrome-stable') or shutil.which('chromium-browser') or shutil.which('chromium')
+        if not chrome_bin:
+            for b in ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium-browser', '/usr/bin/chromium', '/snap/bin/chromium']:
+                if os.path.exists(b):
+                    chrome_bin = b
+                    break
+        if chrome_bin:
+            opts.binary_location = chrome_bin
     # Non-headless: Pinterest board modal needs real rendering
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
