@@ -2764,6 +2764,10 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
           const fd = new FormData();
           fd.append('project_id', curProjId);
           fd.append('platform', platformId);
+          if (result && result.url) fd.append('url', result.url);
+          if (data && data.keyword) fd.append('keyword', data.keyword);
+          if (data && data.target_site) fd.append('target_site', data.target_site);
+          if (data && data.ai_title) fd.append('post_title', data.ai_title);
           fetch('submission-manager.php?action=save_local_backlink', {
             method: 'POST',
             body: fd

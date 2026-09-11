@@ -434,11 +434,10 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                 return img_path
             try:
                 from PIL import Image
-                opt_path = "/tmp/pinterest_opt_upload.jpg"
+                opt_path = os.path.join(os.path.dirname(os.path.abspath(img_path)), f"opt_{int(time.time())}.jpg")
                 with Image.open(img_path) as im:
                     im = im.convert("RGB")
-                    im.thumbnail((800, 1200))
-                    im.save(opt_path, "JPEG", quality=80, optimize=True)
+                    im.save(opt_path, "JPEG", quality=90, optimize=True)
                 if os.path.exists(opt_path) and os.path.getsize(opt_path) > 100:
                     log(f"Optimized upload image size: {os.path.getsize(opt_path)//1024} KB")
                     return opt_path
