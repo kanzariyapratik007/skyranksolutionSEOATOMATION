@@ -40,31 +40,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
 
 // Handle Project Post Image Upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
-    $pId = (int)($_POST['project_id'] ?? 0);
-    if ($pId > 0 && isset($_FILES['post_image']) && $_FILES['post_image']['error'] === UPLOAD_ERR_OK) {
-        $fileTmp = $_FILES['post_image']['tmp_name'];
-        $fileName = $_FILES['post_image']['name'];
-        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
-            $uploadsDir = __DIR__ . '/uploads';
-            if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0777, true);
+    @ini_set('upload_max_filesize', '64M');
+    @ini_set('post_max_size', '64M');
+    @ini_set('memory_limit', '256M');
 
-            // 1. Delete any existing uploaded images for this project
-            $existingFiles = glob($uploadsDir . "/project_{$pId}_*");
-            if (!empty($existingFiles)) {
-                foreach ($existingFiles as $ef) {
-                    if (file_exists($ef)) @unlink($ef);
+    $pId = (int)($_POST['project_id'] ?? 0);
+    if ($pId > 0 && isset($_FILES['post_image'])) {
+        $errCode = $_FILES['post_image']['error'];
+        if ($errCode === UPLOAD_ERR_OK) {
+            $fileTmp = $_FILES['post_image']['tmp_name'];
+            $fileName = $_FILES['post_image']['name'];
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
+                $uploadsDir = __DIR__ . '/uploads';
+                if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0777, true);
+                @chmod($uploadsDir, 0777);
+
+                // 1. Delete any existing uploaded images for this project
+                $existingFiles = glob($uploadsDir . "/project_{$pId}_*");
+                if (!empty($existingFiles)) {
+                    foreach ($existingFiles as $ef) {
+                        if (file_exists($ef)) @unlink($ef);
+                    }
+                }
+
+                // 2. Save new image
+                $newFileName = "project_{$pId}_" . time() . ".{$ext}";
+                $targetPath = $uploadsDir . '/' . $newFileName;
+                if (move_uploaded_file($fileTmp, $targetPath)) {
+                    @chmod($targetPath, 0666);
+                    // 3. Update database post_image column immediately
+                    $upd = $db->prepare("UPDATE projects SET post_image = ? WHERE id = ?");
+                    $upd->execute([$newFileName, $pId]);
+                    if (function_exists('setFlash')) {
+                        setFlash('success', 'Image successfully uploaded! System will use this image for all posts.');
+                    }
+                } else {
+                    if (function_exists('setFlash')) {
+                        setFlash('danger', 'Failed to save uploaded file to /uploads directory. Please check folder permissions.');
+                    }
+                }
+            } else {
+                if (function_exists('setFlash')) {
+                    setFlash('danger', 'Invalid file type. Please upload a JPG, PNG, WebP or GIF.');
                 }
             }
-
-            // 2. Save new image
-            $newFileName = "project_{$pId}_" . time() . ".{$ext}";
-            $targetPath = $uploadsDir . '/' . $newFileName;
-            if (move_uploaded_file($fileTmp, $targetPath)) {
-                @chmod($targetPath, 0666);
-                // 3. Update database post_image column immediately
-                $upd = $db->prepare("UPDATE projects SET post_image = ? WHERE id = ?");
-                $upd->execute([$newFileName, $pId]);
+        } elseif ($errCode === UPLOAD_ERR_INI_SIZE || $errCode === UPLOAD_ERR_FORM_SIZE) {
+            if (function_exists('setFlash')) {
+                setFlash('danger', 'The uploaded image exceeds the maximum allowed file size. Please upload an image under 5MB.');
+            }
+        } else {
+            if (function_exists('setFlash')) {
+                setFlash('danger', 'Upload error code: ' . $errCode . '. Please try selecting the file again.');
             }
         }
     }
