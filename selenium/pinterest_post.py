@@ -833,18 +833,19 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                     pass
 
         # ── Step 9: Get URL ────────────────────────────────────────
-        time.sleep(5)
-        for _ in range(10):
+        time.sleep(4)
+        for _ in range(12):
             cu = driver.current_url
             if "/pin/" in cu:
                 log(f"Pin created successfully! URL: {cu}")
                 result(True, url=cu)
                 return
             page = driver.page_source
-            pin_urls = re.findall(r'https://[a-z.]*pinterest\.com/pin/\d+', page)
-            if pin_urls:
-                log(f"Pin created successfully! URL: {pin_urls[0]}")
-                result(True, url=pin_urls[0])
+            pin_ids = re.findall(r'/pin/(\d+)', page)
+            if pin_ids:
+                full_pin_url = f"https://www.pinterest.com/pin/{pin_ids[0]}/"
+                log(f"Pin created successfully! URL: {full_pin_url}")
+                result(True, url=full_pin_url)
                 return
             time.sleep(2)
 

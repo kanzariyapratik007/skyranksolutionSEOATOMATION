@@ -15,9 +15,34 @@ CURRENT_TUNNEL_URL = None
 GIF_1X1 = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
 
 
+def make_vertical_pinterest_image(input_path):
+    try:
+        from PIL import Image
+        with Image.open(input_path) as im:
+            im = im.convert('RGB')
+            w, h = im.size
+            # If image is landscape or square (w >= h * 0.85), frame it on a clean vertical 1000x1500 canvas
+            if w >= h * 0.85:
+                target_w, target_h = 1000, 1500
+                canvas = Image.new('RGB', (target_w, target_h), color=(241, 245, 249))
+                scale = target_w / float(w)
+                new_w = target_w
+                new_h = int(h * scale)
+                resized = im.resize((new_w, new_h), Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
+                paste_y = max(0, (target_h - new_h) // 2)
+                canvas.paste(resized, (0, paste_y))
+                out_path = os.path.join(SCRIPT_DIR, "temp_local_upload.jpg")
+                canvas.save(out_path, "JPEG", quality=95)
+                print(f"[Agent] Auto-fitted image ({w}x{h}) into vertical Pinterest canvas (1000x1500)", flush=True)
+                return out_path
+    except Exception as e:
+        print(f"[Agent] Note: Image auto-fit skip: {e}", flush=True)
+    return input_path
+
+
 def ensure_local_image(image_path, image_url, keyword):
     if image_path and os.path.exists(image_path) and os.path.getsize(image_path) > 500:
-        return image_path
+        return make_vertical_pinterest_image(image_path)
 
     if image_url:
         try:
@@ -27,7 +52,7 @@ def ensure_local_image(image_path, image_url, keyword):
                 shutil.copyfileobj(response, out_file)
             if os.path.exists(local_img) and os.path.getsize(local_img) > 500:
                 print(f"[Agent] Downloaded image from URL ({os.path.getsize(local_img)} bytes)", flush=True)
-                return local_img
+                return make_vertical_pinterest_image(local_img)
         except Exception as e:
             print(f"[Agent] Warning: Could not download image URL: {e}", flush=True)
 
