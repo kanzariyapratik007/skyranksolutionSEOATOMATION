@@ -1,9 +1,10 @@
 <?php
+ob_start();
 require_once 'config.php';
 requireMenuPermission('submissions');
 
 $db = getDB();
-$userId = $_SESSION['user_id'];
+$userId = $_SESSION['user_id'] ?? 0;
 
 try {
     $db->exec("ALTER TABLE social_accounts ADD COLUMN project_id INT NOT NULL DEFAULT 0");
@@ -24,13 +25,14 @@ try {
 
 // Handle AJAX keyword / target site url updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_targets'])) {
+    while (ob_get_level()) ob_end_clean();
     header('Content-Type: application/json');
     $pId = (int)($_POST['project_id'] ?? 0);
     $targetKeywords = trim($_POST['target_keywords'] ?? '');
     $targetSites = trim($_POST['target_sites'] ?? '');
 
-    $upd = $db->prepare("UPDATE projects SET target_keyword = ?, target_site = ? WHERE id = ? AND user_id = ?");
-    $upd->execute([$targetKeywords, $targetSites, $pId, $userId]);
+    $upd = $db->prepare("UPDATE projects SET target_keyword = ?, target_site = ? WHERE id = ?");
+    $upd->execute([$targetKeywords, $targetSites, $pId]);
 
     echo json_encode(['success' => true]);
     exit;
@@ -47,19 +49,31 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_local_payload') {
     $keyword = !empty($_GET['keyword']) ? clean($_GET['keyword']) : '';
     $targetSite = !empty($_GET['target_site']) ? clean($_GET['target_site']) : '';
 
-    $stmt = $db->prepare("SELECT * FROM projects WHERE id=? AND user_id=?");
-    $stmt->execute([$pId, $userId]);
+    if (empty($userId)) {
+        echo json_encode(['error' => 'User session expired. Please refresh the page to log in.']);
+        exit;
+    }
+
+    if ($pId <= 0) {
+        $stmtP = $db->prepare("SELECT id FROM projects WHERE user_id=? ORDER BY id ASC LIMIT 1");
+        $stmtP->execute([$userId]);
+        $pRow = $stmtP->fetch();
+        if ($pRow) $pId = (int)$pRow['id'];
+    }
+
+    $stmt = $db->prepare("SELECT * FROM projects WHERE id=?");
+    $stmt->execute([$pId]);
     $proj = $stmt->fetch();
     if (!$proj) {
-        echo json_encode(['error' => 'Project not found']);
+        echo json_encode(['error' => 'Project #' . $pId . ' not found in DB']);
         exit;
     }
 
     if (empty($keyword)) $keyword = $proj['target_keyword'];
     if (empty($targetSite)) $targetSite = $proj['target_site'] ?: $proj['website_url'];
 
-    $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE project_id=? AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
-    $credStmt->execute([$pId, $platform]);
+    $credStmt = $db->prepare("SELECT * FROM social_accounts WHERE (project_id=? OR project_id=0 OR user_id=?) AND platform=? AND status='active' ORDER BY id ASC LIMIT 1");
+    $credStmt->execute([$pId, $userId, $platform]);
     $creds = $credStmt->fetch();
     if (!$creds) {
         echo json_encode(['error' => 'No active credentials found for ' . $platform]);
