@@ -388,23 +388,106 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         log("Login OK!")
 
-        # ── Step 2: Pin Creation Tool ──────────────────────────────
+        # ── Step 2: Pin Creation Tool & Drafts Purge ──────────────
         if "pin-builder" not in driver.current_url.lower():
             log("Opening Pin creation tool (pin-builder)...")
             safe_get(driver, "https://www.pinterest.com/pin-builder/")
             time.sleep(5)
         
-        # Check if existing drafts drawer is active and click 'Create new' to ensure fresh canvas
+        # Purge any old leftover drafts so the new Pin is 100% the ONLY Pin being published
         try:
+            log("Checking for existing leftover drafts to clear...")
+            # 1. Try Select All checkbox + Delete button
+            driver.execute_script("""
+                var cbs = Array.from(document.querySelectorAll("input[type='checkbox']"));
+                for (var cb of cbs) {
+                    var parentText = (cb.parentElement ? cb.parentElement.innerText : '').toLowerCase();
+                    var aria = (cb.getAttribute('aria-label') || '').toLowerCase();
+                    if (parentText.includes('select all') || aria.includes('select all')) {
+                        if (!cb.checked) { cb.click(); }
+                        break;
+                    }
+                }
+            """)
+            time.sleep(1)
+            
+            deleted_any = driver.execute_script("""
+                var delBtns = Array.from(document.querySelectorAll("button, div[role='button']"));
+                for (var b of delBtns) {
+                    var txt = (b.innerText || b.getAttribute('aria-label') || '').trim().toLowerCase();
+                    if (txt === 'delete' || txt === 'delete draft' || txt === 'delete drafts' || txt === 'discard') {
+                        b.click();
+                        return true;
+                    }
+                }
+                return false;
+            """)
+            if deleted_any:
+                time.sleep(1.5)
+                # Confirm popup if present
+                driver.execute_script("""
+                    var confirmBtns = Array.from(document.querySelectorAll("div[role='dialog'] button, div[data-test-id*='modal'] button, div[role='dialog'] div[role='button']"));
+                    for (var b of confirmBtns) {
+                        var txt = (b.innerText || b.getAttribute('aria-label') || '').trim().toLowerCase();
+                        if (txt === 'delete' || txt === 'yes, delete' || txt === 'confirm') {
+                            b.click();
+                            break;
+                        }
+                    }
+                """)
+                time.sleep(2)
+                log("Deleted leftover drafts via Select All -> Delete.")
+            
+            # 2. Check if 3-dots menus exist on individual draft items to delete one-by-one
+            for _ in range(5):
+                dots_menu_clicked = driver.execute_script("""
+                    var draftsPanel = document.querySelector("div[aria-label*='Pin drafts' i], div[data-test-id*='drafts' i]");
+                    var dots = Array.from((draftsPanel || document).querySelectorAll("button[aria-label*='More' i], button[aria-label*='Options' i], div[data-test-id*='overflow' i] button, button[aria-label*='draft' i]"));
+                    for (var d of dots) {
+                        if (d.offsetParent !== null) {
+                            d.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                """)
+                if dots_menu_clicked:
+                    time.sleep(0.8)
+                    driver.execute_script("""
+                        var menuItems = Array.from(document.querySelectorAll("div[role='menu'] div[role='button'], div[role='menu'] button, div[data-test-id*='menu'] button"));
+                        for (var item of menuItems) {
+                            var t = (item.innerText || '').toLowerCase();
+                            if (t.includes('delete') || t.includes('discard')) {
+                                item.click();
+                                break;
+                            }
+                        }
+                    """)
+                    time.sleep(1)
+                    driver.execute_script("""
+                        var confs = Array.from(document.querySelectorAll("div[role='dialog'] button"));
+                        for (var c of confs) {
+                            var txt = (c.innerText || '').trim().toLowerCase();
+                            if (txt === 'delete' || txt === 'confirm') {
+                                c.click();
+                                break;
+                            }
+                        }
+                    """)
+                    time.sleep(1.5)
+                else:
+                    break
+
+            # 3. Click 'Create new' to guarantee a fresh blank pin canvas
             create_new_btns = driver.find_elements(By.XPATH, "//button[contains(., 'Create new') or contains(., 'Create New')]")
             for b in create_new_btns:
                 if b.is_displayed():
-                    log("Found existing Pin drafts drawer — clicking 'Create new' to start on fresh canvas...")
+                    log("Found 'Create new' button — clicking to guarantee fresh pin canvas...")
                     driver.execute_script("arguments[0].click();", b)
                     time.sleep(2)
                     break
         except Exception as e_draft:
-            log(f"Draft check notice: {e_draft}")
+            log(f"Draft purge notice: {e_draft}")
         
         log("Pin builder ready")
 
