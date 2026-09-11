@@ -511,7 +511,7 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
         try:
             desc_filled = driver.execute_script("""
                 var val = arguments[0];
-                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], #storyboard-selector-description, .public-DraftEditor-editor";
+                var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], [data-test-id='pin-builder-description'] textarea, [data-test-id='pin-builder-description'] div[role='textbox'], [data-test-id='description-field'], #storyboard-selector-description, .public-DraftEditor-editor";
                 var el = document.querySelector(sel);
                 if (!el) {
                     var elems = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
@@ -521,7 +521,15 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
                         var aria = (c.getAttribute('aria-label') || '').toLowerCase();
                         var dt = (c.getAttribute('data-test-id') || '').toLowerCase();
                         if (id.indexOf('title') !== -1 || ph.indexOf('title') !== -1) return false;
-                        return ph.indexOf('description') !== -1 || ph.indexOf('tell') !== -1 || id.indexOf('description') !== -1 || aria.indexOf('description') !== -1 || aria.indexOf('tell') !== -1 || dt.indexOf('description') !== -1;
+                        return ph.indexOf('description') !== -1 || ph.indexOf('tell') !== -1 || ph.indexOf('add') !== -1 || id.indexOf('description') !== -1 || aria.indexOf('description') !== -1 || aria.indexOf('tell') !== -1 || dt.indexOf('description') !== -1;
+                    });
+                }
+                if (!el) {
+                    var titleEl = document.querySelector("[data-test-id='pin-builder-title'] input, [data-test-id='pin-builder-title'] textarea, #storyboard-selector-title");
+                    var linkEl = document.querySelector("[data-test-id='pin-builder-link'] input, [data-test-id='pin-builder-link'] textarea, input[id='WebsiteField']");
+                    var candidates = Array.from(document.querySelectorAll("textarea, div[contenteditable='true'], div[role='textbox']"));
+                    el = candidates.find(function(c) {
+                        return c !== titleEl && c !== linkEl;
                     });
                 }
                 if (el) {
