@@ -1321,10 +1321,13 @@ $secondBoxList = array_slice($orderedSitesList, 10);
       <p class="text-muted">Provide user credentials → System will post automatically</p>
     </div>
     <div class="col-auto d-flex align-items-center gap-2">
-      <!-- PC Agent Connection Badge -->
+      <!-- PC Agent Connection Badge & Tunnel Setting -->
       <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="promptPcAgentUrl()" title="Click to configure PC Agent HTTPS Tunnel URL">
         <span class="spinner-border spinner-border-sm me-1"></span>Checking PC Agent...
       </div>
+      <button type="button" class="btn btn-sm btn-outline-primary fw-bold shadow-sm" onclick="promptPcAgentUrl()">
+        <i class="fas fa-link me-1"></i>Set Tunnel URL
+      </button>
       <!-- Project selector -->
       <select class="form-select" onchange="location.href='submission-manager.php?project_id='+this.value">
         <?php foreach ($projects as $p): ?>
