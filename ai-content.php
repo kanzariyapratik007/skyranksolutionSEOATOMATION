@@ -766,9 +766,9 @@ if (!function_exists('generateAITitle')) {
 
 if (!function_exists('generateAIDescription')) {
     function generateAIDescription(string $keyword, string $targetSite, string $platform = 'pinterest'): string {
-        $res = generateAIContent($keyword, $targetSite, $platform, 'short_description');
+        $res = generateAIContent($keyword, $targetSite, $platform, 'image_caption');
         if (!empty($res['content'])) {
-            return strip_tags($res['content']);
+            return trim(strip_tags($res['content']));
         }
         return "LearnMore Technologies provides top-rated training in " . $keyword . ". Visit " . $targetSite . " to get started today!";
     }
