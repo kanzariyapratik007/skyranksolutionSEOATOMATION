@@ -38,6 +38,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_project_target
     exit;
 }
 
+// Handle Project Post Image Upload
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_image'])) {
+    $pId = (int)($_POST['project_id'] ?? 0);
+    if ($pId > 0 && isset($_FILES['post_image']) && $_FILES['post_image']['error'] === UPLOAD_ERR_OK) {
+        $fileTmp = $_FILES['post_image']['tmp_name'];
+        $fileName = $_FILES['post_image']['name'];
+        $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+        if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+            $uploadsDir = __DIR__ . '/uploads';
+            if (!is_dir($uploadsDir)) @mkdir($uploadsDir, 0777, true);
+
+            // 1. Delete any existing uploaded images for this project
+            $existingFiles = glob($uploadsDir . "/project_{$pId}_*");
+            if (!empty($existingFiles)) {
+                foreach ($existingFiles as $ef) {
+                    if (file_exists($ef)) @unlink($ef);
+                }
+            }
+
+            // 2. Save new image
+            $newFileName = "project_{$pId}_" . time() . ".{$ext}";
+            $targetPath = $uploadsDir . '/' . $newFileName;
+            if (move_uploaded_file($fileTmp, $targetPath)) {
+                // 3. Update database post_image column immediately
+                $upd = $db->prepare("UPDATE projects SET post_image = ? WHERE id = ?");
+                $upd->execute([$newFileName, $pId]);
+            }
+        }
+    }
+    header("Location: submission-manager.php?project_id={$pId}");
+    exit;
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'save_tunnel_url') {
     if (ob_get_length()) ob_clean();
     header('Content-Type: application/json');

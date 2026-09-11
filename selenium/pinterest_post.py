@@ -581,29 +581,26 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
             else:
                 log("Description element not found via selectors")
 
-            # Fallback check and ActionChains typing to guarantee DraftJS editor state in React
+            # ALWAYS perform ActionChains typing to guarantee DraftJS editor state in React
             time.sleep(0.5)
             try:
-                cur_text = driver.execute_script("""
-                    var sel = "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor";
-                    var el = document.querySelector(sel) || document.activeElement;
-                    return el ? (el.innerText || el.textContent || el.value || '') : '';
-                """)
-                log(f"Current DOM description text length: {len(cur_text.strip())}")
-                if len(cur_text.strip()) < 5:
-                    log("Description text still empty, attempting Selenium ActionChains typing fallback...")
-                    desc_elems = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor, div[contenteditable='true']")
-                    if desc_elems:
-                        for de in desc_elems:
-                            if de.is_displayed():
-                                js_click(driver, de)
-                                time.sleep(0.3)
-                                ActionChains(driver).send_keys(desc).perform()
-                                time.sleep(0.5)
-                                log("Typed description via ActionChains send_keys fallback!")
-                                break
+                log("Typing description via ActionChains send_keys to guarantee DraftJS React State...")
+                desc_elems = driver.find_elements(By.CSS_SELECTOR, "[data-test-id='pin-builder-description'] [contenteditable='true'], .public-DraftEditor-editor, div[contenteditable='true']")
+                if desc_elems:
+                    for de in desc_elems:
+                        if de.is_displayed():
+                            js_click(driver, de)
+                            time.sleep(0.3)
+                            ActionChains(driver).key_down(Keys.CONTROL).send_keys('a').key_up(Keys.CONTROL).perform()
+                            time.sleep(0.2)
+                            ActionChains(driver).send_keys(Keys.BACKSPACE).perform()
+                            time.sleep(0.2)
+                            ActionChains(driver).send_keys(desc).perform()
+                            time.sleep(0.5)
+                            log("Typed description via ActionChains send_keys into DraftJS!")
+                            break
             except Exception as e_ac:
-                log(f"ActionChains desc fallback note: {e_ac}")
+                log(f"ActionChains desc note: {e_ac}")
         except Exception as e:
             log(f"Desc: {e}")
 
