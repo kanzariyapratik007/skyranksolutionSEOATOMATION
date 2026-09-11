@@ -38,11 +38,11 @@ def result(success, url='', error=''):
 def get_driver(email="default", proxy=None):
     opts = Options()
     if sys.platform != "win32":
-        # If running in Xvfb (DISPLAY env set), use display instead of --headless=new to avoid renderer crashes
-        if not os.environ.get('DISPLAY'):
-            opts.add_argument('--headless=new')
+        opts.add_argument('--headless=new')
         opts.add_argument('--disable-gpu')
         opts.add_argument('--disable-software-rasterizer')
+        opts.add_argument('--disable-setuid-sandbox')
+        opts.add_argument('--disable-namespace-sandbox')
         import shutil
         chrome_bin = shutil.which('google-chrome') or shutil.which('google-chrome-stable') or shutil.which('chromium-browser') or shutil.which('chromium')
         if not chrome_bin:
@@ -53,15 +53,11 @@ def get_driver(email="default", proxy=None):
         if chrome_bin:
             opts.binary_location = chrome_bin
 
-    # Chrome launch flags optimized for Linux EC2 stability with swap & low RAM
+    # Chrome launch flags optimized for Linux EC2 stability with swap
     opts.add_argument('--no-sandbox')
     opts.add_argument('--disable-dev-shm-usage')
     opts.add_argument('--disable-gpu')
     opts.add_argument('--disable-software-rasterizer')
-    opts.add_argument('--no-zygote')
-    opts.add_argument('--disable-setuid-sandbox')
-    opts.add_argument('--disable-features=IsolateOrigins,site-per-process,Translate,BackForwardCache')
-    opts.add_argument('--js-flags=--max-old-space-size=512')
     opts.add_argument('--disable-blink-features=AutomationControlled')
     opts.add_argument('--disable-extensions')
     opts.add_experimental_option('excludeSwitches', ['enable-automation'])
@@ -154,16 +150,13 @@ def get_driver(email="default", proxy=None):
             fallback_dir = tempfile.mkdtemp(prefix="chrome_fb_")
             opts = Options()
             if sys.platform != "win32":
-                if not os.environ.get('DISPLAY'):
-                    opts.add_argument('--headless=new')
+                opts.add_argument('--headless=new')
                 opts.add_argument('--disable-gpu')
                 opts.add_argument('--disable-software-rasterizer')
+                opts.add_argument('--disable-setuid-sandbox')
+                opts.add_argument('--disable-namespace-sandbox')
             opts.add_argument('--no-sandbox')
             opts.add_argument('--disable-dev-shm-usage')
-            opts.add_argument('--no-zygote')
-            opts.add_argument('--disable-setuid-sandbox')
-            opts.add_argument('--disable-features=IsolateOrigins,site-per-process,Translate,BackForwardCache')
-            opts.add_argument('--js-flags=--max-old-space-size=512')
             opts.add_argument('--disable-blink-features=AutomationControlled')
             opts.add_experimental_option('excludeSwitches', ['enable-automation'])
             opts.add_experimental_option('useAutomationExtension', False)
