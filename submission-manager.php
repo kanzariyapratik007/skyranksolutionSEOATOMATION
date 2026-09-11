@@ -2776,6 +2776,15 @@ function runLocalAgentPost(platformId, platformName, projectId, accountId) {
         }
       };
 
+      if (!window.skyRankMsgHandlerAdded) {
+        window.skyRankMsgHandlerAdded = true;
+        window.addEventListener('message', function(event) {
+          if (event.data && event.data.type === 'sky_rank_pin_result') {
+            if (window.onLocalAgentPinResult) window.onLocalAgentPinResult(event.data.data);
+          }
+        });
+      }
+
       postViaAgentForm(data);
     })
     .catch(err => {

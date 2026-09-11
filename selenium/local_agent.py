@@ -191,9 +191,8 @@ class AgentHandler(BaseHTTPRequestHandler):
 
                 if is_form:
                     html_body = f"""<!DOCTYPE html><html><body><script>
-                    if (window.parent && window.parent.onLocalAgentPinResult) {{
-                        window.parent.onLocalAgentPinResult({json.dumps(res_data)});
-                    }}
+                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(res_data)} }}, '*'); }} catch(e) {{}}
+                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(res_data)}); }} catch(e) {{}}
                     </script></body></html>""".encode('utf-8')
                     self.send_response(200)
                     self._send_cors_headers()
@@ -208,7 +207,10 @@ class AgentHandler(BaseHTTPRequestHandler):
             except subprocess.TimeoutExpired:
                 err_payload = {"success": False, "error": "Execution timed out after 300 seconds"}
                 if is_form:
-                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_payload)});}}</script></body></html>".encode('utf-8')
+                    html_body = f"""<!DOCTYPE html><html><body><script>
+                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(err_payload)} }}, '*'); }} catch(e) {{}}
+                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(err_payload)}); }} catch(e) {{}}
+                    </script></body></html>""".encode('utf-8')
                     self.send_response(504)
                     self._send_cors_headers()
                     self.send_header('Content-Type', 'text/html')
@@ -221,7 +223,10 @@ class AgentHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 err_payload = {"success": False, "error": str(e)}
                 if is_form:
-                    html_body = f"<!DOCTYPE html><html><body><script>if(window.parent&&window.parent.onLocalAgentPinResult){{window.parent.onLocalAgentPinResult({json.dumps(err_payload)});}}</script></body></html>".encode('utf-8')
+                    html_body = f"""<!DOCTYPE html><html><body><script>
+                    try {{ window.parent.postMessage({{ type: 'sky_rank_pin_result', data: {json.dumps(err_payload)} }}, '*'); }} catch(e) {{}}
+                    try {{ if (window.parent && window.parent.onLocalAgentPinResult) window.parent.onLocalAgentPinResult({json.dumps(err_payload)}); }} catch(e) {{}}
+                    </script></body></html>""".encode('utf-8')
                     self.send_response(500)
                     self._send_cors_headers()
                     self.send_header('Content-Type', 'text/html')
