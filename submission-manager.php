@@ -1322,7 +1322,7 @@ $secondBoxList = array_slice($orderedSitesList, 10);
     </div>
     <div class="col-auto d-flex align-items-center gap-2">
       <!-- PC Agent Connection Badge -->
-      <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="checkPcAgentStatus()" title="Click to refresh PC Agent status">
+      <div id="pcAgentBadge" class="badge bg-secondary p-2 shadow-sm" style="font-size: 13px; font-weight: 500; cursor: pointer;" onclick="promptPcAgentUrl()" title="Click to configure PC Agent HTTPS Tunnel URL">
         <span class="spinner-border spinner-border-sm me-1"></span>Checking PC Agent...
       </div>
       <!-- Project selector -->
@@ -2519,18 +2519,20 @@ function updateAutoPostSelection() {
   refreshBacklinkTables();
 }
 
-// Local PC Agent Bridge Logic
+// Local PC Agent Bridge Logic (Option 3 HTTPS Tunnel Supported)
 let isPcAgentConnected = false;
 let LOCAL_AGENT_URL = 'http://127.0.0.1:8989';
 
-function setPcAgentOnline(url) {
+function setPcAgentOnline(url, label) {
   isPcAgentConnected = true;
   LOCAL_AGENT_URL = url;
   const badge = document.getElementById('pcAgentBadge');
   if (badge) {
-    badge.className = 'badge bg-success p-2 shadow-sm';
-    badge.innerHTML = '<i class="fas fa-desktop me-1"></i>🟢 PC Agent Connected';
-    badge.title = 'Local PC Engine is running on ' + url;
+    const isHttps = url.startsWith('https://');
+    badge.className = 'badge ' + (isHttps ? 'bg-primary' : 'bg-success') + ' p-2 shadow-sm';
+    badge.style.cursor = 'pointer';
+    badge.innerHTML = '<i class="fas ' + (isHttps ? 'fa-lock' : 'fa-desktop') + ' me-1"></i>🟢 PC Agent: ' + (label || (isHttps ? 'HTTPS Tunnel' : 'Connected')) + ' <i class="fas fa-cog ms-1 opacity-75"></i>';
+    badge.title = 'Click to configure PC Agent HTTPS Tunnel URL. Running on ' + url;
   }
 }
 
@@ -2539,12 +2541,64 @@ function setPcAgentOffline() {
   const badge = document.getElementById('pcAgentBadge');
   if (badge) {
     badge.className = 'badge bg-danger p-2 shadow-sm';
-    badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline';
-    badge.title = 'Double-click run_local_agent.bat on your PC for 0-block posting';
+    badge.style.cursor = 'pointer';
+    badge.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>🔴 PC Agent Offline <i class="fas fa-cog ms-1 opacity-75"></i>';
+    badge.title = 'Click to set HTTPS Tunnel URL or start run_local_agent.bat on PC';
+  }
+}
+
+function promptPcAgentUrl() {
+  const current = localStorage.getItem('skyrank_pc_agent_url') || '';
+  const input = prompt(
+    "Option 3: Cloudflare HTTPS Tunnel URL\n\n" +
+    "Paste your PC Agent HTTPS URL (from PC CMD window e.g. https://xxxx.trycloudflare.com):\n\n" +
+    "(Leave blank to reset to default 127.0.0.1:8989)",
+    current
+  );
+
+  if (input !== null) {
+    const cleanUrl = input.trim().replace(/\/$/, '');
+    if (cleanUrl) {
+      localStorage.setItem('skyrank_pc_agent_url', cleanUrl);
+      setPcAgentOnline(cleanUrl, 'HTTPS Tunnel');
+      alert('✅ PC Agent HTTPS Tunnel URL saved:\n' + cleanUrl);
+    } else {
+      localStorage.removeItem('skyrank_pc_agent_url');
+      alert('Reset to local 127.0.0.1:8989 mode.');
+    }
+    checkPcAgentStatus();
   }
 }
 
 function checkPcAgentStatus() {
+  const customUrl = localStorage.getItem('skyrank_pc_agent_url');
+  let resolved = false;
+
+  if (customUrl && customUrl.startsWith('https://')) {
+    console.log('[SkyRank Bridge] Probing Cloudflare Tunnel HTTPS URL:', customUrl);
+    fetch(customUrl + '/health', { mode: 'cors' })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.status === 'active' && !resolved) {
+          resolved = true;
+          setPcAgentOnline(customUrl, 'HTTPS Tunnel');
+        }
+      })
+      .catch(err => {
+        console.warn('[SkyRank Bridge] Custom HTTPS Tunnel probe failed, checking local fallback...', err);
+        if (!resolved) checkLocalProbeFallback();
+      });
+
+    setTimeout(() => {
+      if (!resolved) checkLocalProbeFallback();
+    }, 2500);
+    return;
+  }
+
+  checkLocalProbeFallback();
+}
+
+function checkLocalProbeFallback() {
   console.log('[SkyRank Bridge] Checking PC Agent health via Image Probe...');
   let resolved = false;
 
@@ -2645,7 +2699,7 @@ function runLocalAgentPost(platformId, platformName, projectId) {
       document.getElementById('postingStatus').innerHTML = `🤖 Opening Chrome on your PC...`;
       document.getElementById('postingDetail').innerHTML = `<div class="spinner-border spinner-border-sm me-2"></div>Running Selenium on your PC for account <strong>${data.email}</strong>... Please do not close Chrome.`;
 
-      // Step 2: Post via Form Submit to Hidden Iframe (100% exempted from Chrome PNA blocks!)
+      // Callback handler when PC Agent completes
       window.onLocalAgentPinResult = function(result) {
         if (result && result.success) {
           document.getElementById('postingStatus').innerHTML = `✅ Successfully Posted to ${platformName}!`;
@@ -2680,6 +2734,31 @@ function runLocalAgentPost(platformId, platformName, projectId) {
 }
 
 function postViaAgentForm(payload) {
+  const customUrl = localStorage.getItem('skyrank_pc_agent_url');
+  const targetUrl = customUrl ? (customUrl + '/run_pin') : (LOCAL_AGENT_URL ? (LOCAL_AGENT_URL + '/run_pin') : 'http://127.0.0.1:8989/run_pin');
+
+  if (targetUrl.startsWith('https://')) {
+    console.log('[SkyRank Bridge] Posting via HTTPS Tunnel fetch to:', targetUrl);
+    fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(resData => {
+      if (window.onLocalAgentPinResult) window.onLocalAgentPinResult(resData);
+    })
+    .catch(err => {
+      console.warn('[SkyRank Bridge] HTTPS fetch error, falling back to form submit:', err);
+      submitHiddenForm(targetUrl, payload);
+    });
+    return;
+  }
+
+  submitHiddenForm(targetUrl, payload);
+}
+
+function submitHiddenForm(targetUrl, payload) {
   let iframe = document.getElementById('agentHiddenIframe');
   if (!iframe) {
     iframe = document.createElement('iframe');
@@ -2696,7 +2775,7 @@ function postViaAgentForm(payload) {
   form.id = 'agentHiddenForm';
   form.target = 'agentHiddenIframe';
   form.method = 'POST';
-  form.action = 'http://127.0.0.1:8989/run_pin';
+  form.action = targetUrl;
 
   for (const key in payload) {
     const input = document.createElement('input');
@@ -2708,7 +2787,7 @@ function postViaAgentForm(payload) {
 
   document.body.appendChild(form);
   form.submit();
-  console.log('[SkyRank Bridge] Submitted payload via Form to PC Agent!');
+  console.log('[SkyRank Bridge] Submitted payload via Form to target:', targetUrl);
 }
 }
 

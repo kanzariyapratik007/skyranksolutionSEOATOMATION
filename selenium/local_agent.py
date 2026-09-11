@@ -3,12 +3,14 @@
 SkyRank Local Agent Engine (Zero-Dependency HTTP Server on 127.0.0.1:8989)
 Runs on User's PC to bridge Web Portal commands to Local Selenium Browser Execution.
 """
-import sys, json, os, subprocess, urllib.request
+import sys, json, os, subprocess, urllib.request, re, threading, shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+
 
 PORT = 8989
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 POST_SCRIPT = os.path.join(SCRIPT_DIR, "pinterest_post.py")
+CURRENT_TUNNEL_URL = None
 
 GIF_1X1 = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
 
@@ -75,7 +77,10 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == '/health' or self.path == '/':
-            res = {"status": "active", "agent": "SkyRank Local Engine", "port": PORT}
+            res = {"status": "active", "agent": "SkyRank Local Engine", "port": PORT, "tunnel_url": CURRENT_TUNNEL_URL}
+            self._send_json_response(200, res)
+        elif self.path == '/tunnel':
+            res = {"status": "active", "tunnel_url": CURRENT_TUNNEL_URL}
             self._send_json_response(200, res)
         else:
             self.send_response(404)
@@ -193,7 +198,45 @@ class AgentHandler(BaseHTTPRequestHandler):
             self.send_header('Connection', 'close')
             self.end_headers()
 
+def start_cloudflared():
+    cloudflared_exe = os.path.join(SCRIPT_DIR, "cloudflared.exe")
+    if not os.path.exists(cloudflared_exe):
+        # try PATH
+        import shutil
+        cloudflared_exe = shutil.which("cloudflared") or "cloudflared"
+
+    try:
+        print("[Agent] Starting Cloudflare HTTPS Tunnel...", flush=True)
+        proc = subprocess.Popen(
+            [cloudflared_exe, "tunnel", "--url", f"http://127.0.0.1:{PORT}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        def monitor_tunnel():
+            global CURRENT_TUNNEL_URL
+            for line in proc.stdout:
+                line_clean = line.strip()
+                match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line_clean)
+                if match and not CURRENT_TUNNEL_URL:
+                    CURRENT_TUNNEL_URL = match.group(0)
+                    print("\n==================================================", flush=True)
+                    print("  [SECURE HTTPS TUNNEL CREATED!]", flush=True)
+                    print(f"  [HTTPS URL]: {CURRENT_TUNNEL_URL}", flush=True)
+                    print("  -> COPY THIS HTTPS URL & PASTE IT IN WEB PORTAL", flush=True)
+                    print("==================================================\n", flush=True)
+
+        t = threading.Thread(target=monitor_tunnel, daemon=True)
+        t.start()
+        return proc
+    except Exception as e:
+        print(f"[Agent] Note: Cloudflare tunnel start skipped: {e}", flush=True)
+        return None
+
 def run_server():
+    cf_proc = start_cloudflared()
     server = ThreadingHTTPServer(('0.0.0.0', PORT), AgentHandler)
     print(f"==================================================", flush=True)
     print(f"  SkyRank Local Agent Engine Running", flush=True)
@@ -204,7 +247,10 @@ def run_server():
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n[Agent] Stopping Local Agent...", flush=True)
+        if cf_proc:
+            cf_proc.terminate()
         server.server_close()
 
 if __name__ == '__main__':
     run_server()
+
