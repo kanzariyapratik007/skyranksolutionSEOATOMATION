@@ -742,58 +742,66 @@ def pinterest_post(email, password, keyword, target_site, image_path=None, ai_ti
 
         # ── Step 8: Publish ────────────────────────────────────────
         log("Publishing pin...")
-        time.sleep(4)
+        time.sleep(3)
         published = False
 
-        # Debug: screenshot + dump all buttons
-        driver.save_screenshot(os.path.join(os.path.dirname(__file__), 'before_publish.png'))
-        btns_debug = driver.find_elements(By.TAG_NAME, "button")
-        log(f"Total buttons on page: {len(btns_debug)}")
-        for btn in btns_debug:
-            t = btn.text.strip()
-            if t:
-                log(f"  btn: '{t}' enabled={btn.is_enabled()} displayed={btn.is_displayed()} data-test-id={btn.get_attribute('data-test-id')}")
-
-        # Try all buttons/elements with any Publish-like text or data-test-id
-        for attempt in range(5):
-            found_any = False
-            candidates = []
-            for tag in ('button', 'div', 'span'):
-                for el in driver.find_elements(By.TAG_NAME, tag):
-                    try:
-                        txt = el.text.strip().lower()
-                        test_id = (el.get_attribute('data-test-id') or '').lower()
-                        if not el.is_displayed():
-                            continue
-                        if txt in ('create new', 'add products', 'create'):
-                            continue
-                        # Match 'publish', 'save', 'done', 'publish-button', 'save-button'
-                        if (txt in ('publish', 'save', 'done') or 
-                            'publish' in test_id or 
-                            'save-button' in test_id or 
-                            'publish-button' in test_id):
-                            if el.is_enabled():
-                                candidates.append(el)
-                    except:
-                        pass
-            
-            for btn in candidates:
-                try:
-                    found_any = True
-                    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
-                    time.sleep(0.5)
-                    js_click(driver, btn)
-                    time.sleep(10)
-                    log("Published via candidate click!")
-                    published = True
+        # Try targeted publish selectors first
+        pub_selectors = [
+            "[data-test-id='board-dropdown-save-button']",
+            "[data-test-id='storyboard-creation-nav-save-button']",
+            "[data-test-id='pin-builder-publish-button']",
+            "button[type='submit']"
+        ]
+        for sel in pub_selectors:
+            try:
+                elems = driver.find_elements(By.CSS_SELECTOR, sel)
+                for el in elems:
+                    if el and el.is_displayed() and el.is_enabled():
+                        js_click(driver, el)
+                        time.sleep(6)
+                        log(f"Published via selector '{sel}'!")
+                        published = True
+                        break
+                if published:
                     break
-                except Exception as ex:
-                    log(f"Publish candidate click failed: {ex}")
-            if published:
-                break
-            if not found_any:
-                log(f"No publish button found attempt {attempt+1}, waiting 3s...")
-            time.sleep(3)
+            except Exception as e_pub:
+                pass
+
+        if not published:
+            for attempt in range(4):
+                found_any = False
+                candidates = []
+                for tag in ('button', 'div', 'span'):
+                    for el in driver.find_elements(By.TAG_NAME, tag):
+                        try:
+                            txt = (el.text or '').strip().lower()
+                            test_id = (el.get_attribute('data-test-id') or '').lower()
+                            if not el.is_displayed():
+                                continue
+                            if txt in ('create new', 'add products', 'create'):
+                                continue
+                            if (txt in ('publish', 'save', 'done') or 
+                                'publish' in test_id or 
+                                'save-button' in test_id or 
+                                'publish-button' in test_id):
+                                if el.is_enabled():
+                                    candidates.append(el)
+                        except:
+                            pass
+                
+                for btn in candidates:
+                    try:
+                        found_any = True
+                        js_click(driver, btn)
+                        time.sleep(6)
+                        log("Published via candidate click!")
+                        published = True
+                        break
+                    except Exception as ex:
+                        log(f"Publish click: {ex}")
+                if published:
+                    break
+                time.sleep(2)
 
         # ── Step 9: Get URL ────────────────────────────────────────
         time.sleep(5)
