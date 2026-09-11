@@ -2569,7 +2569,6 @@ const AUTO_TUNNEL_URL = <?= json_encode($autoTunnelUrl) ?>;
 if (AUTO_TUNNEL_URL && AUTO_TUNNEL_URL.startsWith('https://')) {
     localStorage.setItem('skyrank_pc_agent_url', AUTO_TUNNEL_URL);
 }
-</script>
 
 // Local PC Agent Bridge Logic (Option 3 HTTPS Tunnel Supported)
 let isPcAgentConnected = false;
