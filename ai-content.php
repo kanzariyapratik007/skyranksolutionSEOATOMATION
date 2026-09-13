@@ -53,6 +53,19 @@ Rules:
 - Year {$yr} can be included if it fits naturally
 - Random seed: {$seed}{$avoidBlock}";
 
+    $provider = defined('PRIMARY_AI_PROVIDER') ? PRIMARY_AI_PROVIDER : 'auto';
+    $deepseekKey = defined('DEEPSEEK_API_KEY') ? DEEPSEEK_API_KEY : '';
+
+    if (($provider === 'deepseek' || $provider === 'auto') && !empty($deepseekKey) && strpos($deepseekKey, 'sk-') === 0) {
+        $deepseekTitle = generateWithDeepSeek($prompt, $deepseekKey);
+        if ($deepseekTitle) {
+            $title = trim(trim($deepseekTitle), '"\'');
+            if (!empty($title) && strlen($title) > 10 && strlen($title) < 200) {
+                return $title;
+            }
+        }
+    }
+
     if (!empty($openaiKey) && strpos($openaiKey, 'sk-') === 0) {
         $model = defined('OPENAI_MODEL') ? OPENAI_MODEL : 'gpt-4o-mini';
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
@@ -81,7 +94,6 @@ Rules:
 
         if ($httpCode === 200) {
             $title = trim($resp['choices'][0]['message']['content'] ?? '');
-            // Strip surrounding quotes if ChatGPT added them
             $title = trim($title, '"\'');
             if (!empty($title) && strlen($title) > 10 && strlen($title) < 200) {
                 return $title;
@@ -250,16 +262,31 @@ if (!function_exists('generateWithGemini')) {
     }
 }
 
-/** Primary AI: ChatGPT only, returns [text, source] */
+/** Primary AI provider wrapper, returns [text, source] */
 function generateWithAI(string $prompt): array {
-    $content = generateWithOpenAI($prompt);
-    if ($content) {
-        return ['text' => $content, 'source' => 'ChatGPT'];
+    $provider = defined('PRIMARY_AI_PROVIDER') ? PRIMARY_AI_PROVIDER : 'auto';
+
+    if ($provider === 'deepseek') {
+        $content = generateWithDeepSeek($prompt);
+        if ($content) return ['text' => $content, 'source' => 'DeepSeek'];
+    } elseif ($provider === 'gemini') {
+        $content = generateWithGemini($prompt);
+        if ($content) return ['text' => $content, 'source' => 'Gemini'];
+    } elseif ($provider === 'openai') {
+        $content = generateWithOpenAI($prompt);
+        if ($content) return ['text' => $content, 'source' => 'ChatGPT'];
     }
+
+    // Default / Auto / Fallback chain
+    $content = generateWithDeepSeek($prompt);
+    if ($content) return ['text' => $content, 'source' => 'DeepSeek'];
+
     $content = generateWithGemini($prompt);
-    if ($content) {
-        return ['text' => $content, 'source' => 'Gemini'];
-    }
+    if ($content) return ['text' => $content, 'source' => 'Gemini'];
+
+    $content = generateWithOpenAI($prompt);
+    if ($content) return ['text' => $content, 'source' => 'ChatGPT'];
+
     return ['text' => null, 'source' => 'Template'];
 }
 
@@ -480,20 +507,34 @@ Platform: {$platform}. Post variation #{$postCount}. Random seed: {$randomSeed}.
 
     $content = null;
     $source = 'Template';
+    $provider = defined('PRIMARY_AI_PROVIDER') ? PRIMARY_AI_PROVIDER : 'auto';
+    $deepseekKey = defined('DEEPSEEK_API_KEY') ? DEEPSEEK_API_KEY : '';
 
-    if (!empty($openaiKey) && strpos($openaiKey, 'sk-') === 0) {
+    if ($provider === 'deepseek' && !empty($deepseekKey)) {
+        $content = generateWithDeepSeek($prompt, $deepseekKey);
+        if ($content) $source = 'DeepSeek';
+    } elseif ($provider === 'gemini' && !empty($geminiKey)) {
+        $content = generateWithGemini($prompt, $geminiKey);
+        if ($content) $source = 'Gemini';
+    } elseif ($provider === 'openai' && !empty($openaiKey)) {
         $content = generateWithOpenAI($prompt, $openaiKey);
-        if ($content) {
-            $source = 'ChatGPT';
-        }
+        if ($content) $source = 'ChatGPT';
     }
 
-    // Failover/backup to Gemini if OpenAI fails or is not configured
+    // Default / Auto / Fallback chain if primary is auto or failed
+    if (!$content && !empty($deepseekKey) && strpos($deepseekKey, 'sk-') === 0) {
+        $content = generateWithDeepSeek($prompt, $deepseekKey);
+        if ($content) $source = 'DeepSeek';
+    }
+
     if (!$content && !empty($geminiKey)) {
         $content = generateWithGemini($prompt, $geminiKey);
-        if ($content) {
-            $source = 'Gemini';
-        }
+        if ($content) $source = 'Gemini';
+    }
+
+    if (!$content && !empty($openaiKey) && strpos($openaiKey, 'sk-') === 0) {
+        $content = generateWithOpenAI($prompt, $openaiKey);
+        if ($content) $source = 'ChatGPT';
     }
 
     if (!$content) {

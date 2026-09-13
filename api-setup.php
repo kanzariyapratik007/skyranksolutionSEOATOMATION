@@ -45,6 +45,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['test_ai_key'])) {
             echo json_encode(['success' => false, 'error' => '❌ OpenAI Error: ' . $msg]);
         }
         exit;
+    } elseif ($provider === 'deepseek') {
+        $ch = curl_init('https://api.deepseek.com/v1/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode([
+                'model' => 'deepseek-chat',
+                'messages' => [['role' => 'user', 'content' => 'Say test ok']],
+                'max_tokens' => 5
+            ]),
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $key,
+                'Content-Type: application/json'
+            ],
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        $res = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $json = json_decode($res, true);
+        
+        if ($code === 200) {
+            echo json_encode(['success' => true, 'message' => '✅ DeepSeek API Key is VALID and working!']);
+        } else {
+            $msg = $json['error']['message'] ?? "HTTP $code Error";
+            echo json_encode(['success' => false, 'error' => '❌ DeepSeek Error: ' . $msg]);
+        }
+        exit;
     } elseif ($provider === 'gemini') {
         $ch = curl_init("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" . $key);
         curl_setopt_array($ch, [
@@ -77,10 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_keys'])) {
         $error = 'Invalid request.';
     } else {
         $keys = [
+            'PRIMARY_AI_PROVIDER'  => trim($_POST['primary_ai_provider'] ?? 'auto'),
             'OPENAI_API_KEY'       => trim($_POST['openai'] ?? ''),
             'OPENAI_MODEL'         => trim($_POST['openai_model'] ?? 'gpt-4o-mini'),
             'OPENAI_IMAGE_API_KEY' => trim($_POST['openai_image'] ?? ''),
             'GEMINI_API_KEY'       => trim($_POST['gemini'] ?? ''),
+            'DEEPSEEK_API_KEY'     => trim($_POST['deepseek'] ?? ''),
             'DATAFORSEO_LOGIN'     => trim($_POST['dataforseo_login'] ?? ''),
             'DATAFORSEO_PASSWORD'  => trim($_POST['dataforseo_password'] ?? ''),
             'GOOGLE_API_KEY'       => trim($_POST['google'] ?? ''),
@@ -183,6 +214,36 @@ function maskKey($v) {
     <div class="card-body">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="save_keys" value="1">
+
+      <div class="mb-4 p-3 bg-light rounded border">
+        <label class="form-label fw-bold text-primary fs-6 mb-1"><i class="fas fa-brain me-1"></i>Primary AI Content Provider</label>
+        <?php $currentProvider = $local['PRIMARY_AI_PROVIDER'] ?? (defined('PRIMARY_AI_PROVIDER') ? PRIMARY_AI_PROVIDER : 'auto'); ?>
+        <select name="primary_ai_provider" class="form-select font-monospace fw-bold border-primary">
+          <option value="auto" <?= $currentProvider === 'auto' ? 'selected' : '' ?>>🔄 Auto Fallback (Try DeepSeek → Gemini → ChatGPT)</option>
+          <option value="deepseek" <?= $currentProvider === 'deepseek' ? 'selected' : '' ?>>🐋 DeepSeek AI (Super Cheap & Natural - Recommended)</option>
+          <option value="openai" <?= $currentProvider === 'openai' ? 'selected' : '' ?>>🤖 ChatGPT (OpenAI)</option>
+          <option value="gemini" <?= $currentProvider === 'gemini' ? 'selected' : '' ?>>⚡ Google Gemini (100% Free)</option>
+        </select>
+        <div class="form-text mt-1">
+          Choose which AI engine to use for generating blog posts, titles, and social auto-poster content.
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="form-label fw-bold mb-0">DeepSeek API Key <span class="text-success">(Ultra Cheap & Natural)</span></label>
+          <button type="button" class="btn btn-outline-info btn-sm" onclick="testKey('deepseek')">
+            <i class="fas fa-plug me-1"></i>Test DeepSeek Key
+          </button>
+        </div>
+        <input type="text" id="input_deepseek" name="deepseek" class="form-control font-monospace" placeholder="sk-..."
+               value="<?= clean($local['DEEPSEEK_API_KEY'] ?? (defined('DEEPSEEK_API_KEY') ? DEEPSEEK_API_KEY : '')) ?>">
+        <div id="status_deepseek" class="mt-1 small"></div>
+        <div class="form-text">
+          <strong>How to get:</strong> <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com/api_keys</a>
+          → Login → <strong>Create new secret key</strong> → copy <code>sk-...</code> → paste here.
+        </div>
+      </div>
 
       <div class="mb-3">
         <div class="d-flex justify-content-between align-items-center mb-1">

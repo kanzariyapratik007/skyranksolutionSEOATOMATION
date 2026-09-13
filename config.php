@@ -55,6 +55,9 @@ define('OPENAI_MODEL',         (string) seoCfg('OPENAI_MODEL', 'gpt-4o-mini'));
 define('OPENAI_IMAGE_MODEL',   (string) seoCfg('OPENAI_IMAGE_MODEL', 'dall-e-3'));
 define('OPENAI_IMAGE_SIZE',    (string) seoCfg('OPENAI_IMAGE_SIZE', '1024x1024'));
 define('GEMINI_API_KEY',       (string) seoCfg('GEMINI_API_KEY', ''));
+define('DEEPSEEK_API_KEY',     (string) seoCfg('DEEPSEEK_API_KEY', ''));
+define('DEEPSEEK_MODEL',       (string) seoCfg('DEEPSEEK_MODEL', 'deepseek-chat'));
+define('PRIMARY_AI_PROVIDER',  (string) seoCfg('PRIMARY_AI_PROVIDER', 'auto'));
 define('STABILITY_API_KEY',    (string) seoCfg('STABILITY_API_KEY', ''));
 define('HUGGINGFACE_API_KEY',  (string) seoCfg('HUGGINGFACE_API_KEY', ''));
 define('GOOGLE_API_KEY',       (string) seoCfg('GOOGLE_API_KEY', ''));
@@ -667,6 +670,49 @@ if (!function_exists('generateWithOpenAI')) {
                 ],
                 'temperature' => 1.0, // Maximum randomness
                 'top_p' => 0.9,
+                'max_tokens'  => 4000,
+            ]),
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        $response = json_decode(curl_exec($ch), true);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode !== 200) {
+            return null;
+        }
+
+        return $response['choices'][0]['message']['content'] ?? null;
+    }
+}
+
+if (!function_exists('generateWithDeepSeek')) {
+    function generateWithDeepSeek(string $prompt, ?string $apiKey = null): ?string {
+        $apiKey = $apiKey ?? (defined('DEEPSEEK_API_KEY') ? DEEPSEEK_API_KEY : '');
+        if (empty($apiKey) || strpos($apiKey, 'sk-') !== 0) {
+            return null;
+        }
+
+        $model = defined('DEEPSEEK_MODEL') ? DEEPSEEK_MODEL : 'deepseek-chat';
+        $randomSeed = rand(100000, 999999);
+        $uniquePrompt = $prompt . "\n\nGenerate completely unique content. Random seed: {$randomSeed}. Current timestamp: " . time() . ". Do not repeat any previous content.";
+
+        $ch = curl_init('https://api.deepseek.com/v1/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode([
+                'model'       => $model,
+                'messages'    => [
+                    ['role' => 'system', 'content' => 'You are an expert SEO content writer. Write unique, engaging content every time. Never repeat the same content twice. Use HTML when asked.'],
+                    ['role' => 'user',   'content' => $uniquePrompt],
+                ],
+                'temperature' => 1.0,
                 'max_tokens'  => 4000,
             ]),
             CURLOPT_HTTPHEADER => [
