@@ -247,9 +247,23 @@ class AgentHandler(BaseHTTPRequestHandler):
 def start_cloudflared():
     cloudflared_exe = os.path.join(SCRIPT_DIR, "cloudflared.exe")
     if not os.path.exists(cloudflared_exe):
-        # try PATH
-        import shutil
-        cloudflared_exe = shutil.which("cloudflared") or "cloudflared"
+        found = shutil.which("cloudflared")
+        if found:
+            cloudflared_exe = found
+        else:
+            print("[Agent] Downloading Cloudflare HTTPS Tunnel helper (cloudflared.exe)...", flush=True)
+            try:
+                cf_url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+                req = urllib.request.Request(cf_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=45) as resp, open(cloudflared_exe, 'wb') as out_f:
+                    shutil.copyfileobj(resp, out_f)
+                print("[Agent] cloudflared.exe downloaded successfully!", flush=True)
+            except Exception as dl_err:
+                print(f"[Agent] Note: Could not auto-download cloudflared: {dl_err}", flush=True)
+
+    if not os.path.exists(cloudflared_exe) and not shutil.which("cloudflared"):
+        print("[Agent] Note: Cloudflare tunnel skipped (cloudflared.exe missing)", flush=True)
+        return None
 
     try:
         print("[Agent] Starting Cloudflare HTTPS Tunnel...", flush=True)
