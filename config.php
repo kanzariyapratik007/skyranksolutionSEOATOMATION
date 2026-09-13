@@ -692,7 +692,7 @@ if (!function_exists('generateWithOpenAI')) {
 }
 
 if (!function_exists('generateWithDeepSeek')) {
-    function generateWithDeepSeek(string $prompt, ?string $apiKey = null): ?string {
+    function generateWithDeepSeek(string $prompt, ?string $apiKey = null, int $maxTokens = 2000): ?string {
         $apiKey = $apiKey ?? (defined('DEEPSEEK_API_KEY') ? DEEPSEEK_API_KEY : '');
         if (empty($apiKey) || strpos($apiKey, 'sk-') !== 0) {
             return null;
@@ -713,7 +713,7 @@ if (!function_exists('generateWithDeepSeek')) {
                     ['role' => 'user',   'content' => $uniquePrompt],
                 ],
                 'temperature' => 1.0,
-                'max_tokens'  => 4000,
+                'max_tokens'  => $maxTokens,
             ]),
             CURLOPT_HTTPHEADER => [
                 'Authorization: Bearer ' . $apiKey,
